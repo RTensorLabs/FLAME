@@ -1,0 +1,26 @@
+# Phase 1 sanity check: a ~0.2 M parameter model must memorise a tiny text.
+# If the final loss is not close to 0, something in the model or trainer is broken — do not scale up.
+# Runs in ~1 minute on CPU.
+
+[model]
+d_model = 64
+n_layers = 2
+n_heads = 4
+max_seq_len = 64
+
+[train]
+micro_batch_size = 16
+seq_len = 64
+max_steps = 400
+lr = 3e-3
+min_lr = 3e-4
+warmup_steps = 20
+weight_decay = 0.0
+eval_every = 100
+eval_batches = 4
+log_every = 25
+sample_every = 100
+
+[data]
+tokenizer = "data/tokenizers/byte.json"
+dataset_dir = "data/overfit"

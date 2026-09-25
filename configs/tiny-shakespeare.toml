@@ -1,0 +1,27 @@
+# First real training run: character-level (byte) model on Tiny Shakespeare (~1 MB).
+# ~0.8 M parameters. ≈ 10–20 min on an RTX 3070 Ti laptop GPU, ~1–2 h on CPU.
+# Expected result: val_loss ≈ 1.5 (nanoGPT's char model reaches ≈ 1.47 with 10 M params).
+
+[model]
+d_model = 128
+n_layers = 4
+n_heads = 4
+max_seq_len = 256
+
+[train]
+micro_batch_size = 32
+seq_len = 256
+max_steps = 3000
+lr = 1e-3
+min_lr = 1e-4
+warmup_steps = 100
+weight_decay = 0.1
+eval_every = 250
+eval_batches = 20
+log_every = 25
+sample_every = 500
+checkpoint_every_minutes = 10
+
+[data]
+tokenizer = "data/tokenizers/byte.json"
+dataset_dir = "data/shakespeare"

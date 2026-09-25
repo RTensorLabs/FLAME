@@ -1,0 +1,7 @@
+FLAME is a small framework for training language models from scratch. The first milestone is simple: a tiny Transformer must be able to memorise this paragraph exactly. If it cannot overfit a tiny dataset, something is broken, and scaling up would only hide the bug.
+<|endoftext|>
+FLAME is a small framework for training language models from scratch. The first milestone is simple: a tiny Transformer must be able to memorise this paragraph exactly. If it cannot overfit a tiny dataset, something is broken, and scaling up would only hide the bug.
+<|endoftext|>
+FLAME is a small framework for training language models from scratch. The first milestone is simple: a tiny Transformer must be able to memorise this paragraph exactly. If it cannot overfit a tiny dataset, something is broken, and scaling up would only hide the bug.
+<|endoftext|>
+FLAME is a small framework for training language models from scratch. The first milestone is simple: a tiny Transformer must be able to memorise this paragraph exactly. If it cannot overfit a tiny dataset, something is broken, and scaling up would only hide the bug.

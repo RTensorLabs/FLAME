@@ -1,0 +1,27 @@
+# Dense baseline for the research track: ~5 M parameters on TinyStories with a 4096-token BPE.
+# 6 000 steps × 64 × 256 tokens ≈ 98 M tokens (~20 tokens/param, "Chinchilla-optimal").
+# Estimate on an RTX 3070 Ti laptop: ≈ 1–2.5 h  → one weekend session or 2–3 weekday evenings.
+
+[model]
+d_model = 256
+n_layers = 6
+n_heads = 8
+max_seq_len = 256
+
+[train]
+micro_batch_size = 32
+grad_accum_steps = 2
+seq_len = 256
+max_steps = 6000
+lr = 1e-3
+min_lr = 1e-4
+warmup_steps = 200
+eval_every = 500
+eval_batches = 40
+log_every = 50
+sample_every = 1000
+checkpoint_every_minutes = 10
+
+[data]
+tokenizer = "data/tokenizers/tinystories-4k.json"
+dataset_dir = "data/tinystories"
