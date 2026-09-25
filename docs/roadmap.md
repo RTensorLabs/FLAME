@@ -20,24 +20,14 @@ Status legend: ✅ done · 🟡 ready to run (code exists, needs your GPU time) 
 | 3 | memory-efficient attention (recompute in backward) → contexts of 2k–8k | ⬜ |
 | 4 | Rust code corpus + 8k BPE | 🟡 (see below) |
 | 4 | 30 M Rust base model (`configs/rust-30m.toml`) | 🟡 (2–8 weeks of evenings) |
-| 4 | ~100 M model | ⬜ (after the speed work) |
+| 4 | ~100 M model (`configs/rust-100m.toml`) | ⬜ only if Lintless on 30 M isn't good enough (end-to-end guide ⑧), after the speed work |
 
 ### Building the Rust corpus (Phase 4)
 
-Easy, license-aware sources of Rust code already on your machine:
-
-```bash
-# every crate you've ever downloaded with cargo (often hundreds of MB of real Rust)
-flame tokenizer train --input ~/.cargo/registry/src --ext rs --vocab-size 8192 \
-      --out data/tokenizers/rust-8k.json --sample-mb 100
-flame prepare --input ~/.cargo/registry/src --ext rs \
-      --tokenizer data/tokenizers/rust-8k.json --out data/rust
-# optional: add your own projects and the standard library source
-#   rustup component add rust-src   →   $(rustc --print sysroot)/lib/rustlib/src/rust/library
-```
-
-Each file becomes one document. Most crates are MIT/Apache-2.0; keep the corpus for training,
-don't redistribute it.
+`tools/fetch_rust_corpus.sh` downloads ~1–3 GB of Rust source (shallow clones of large Rust
+projects + popular crates via cargo), then tokenizer training and `flame prepare` follow.
+Step by step, including how to match `max_steps` to the amount of data:
+[end-to-end-guide.md ⑤](end-to-end-guide.md#-build-the-rust-corpus-1-hour-mostly-downloading).
 
 ## flame-research
 

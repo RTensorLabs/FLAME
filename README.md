@@ -177,6 +177,9 @@ would load weights into a different model. You *may* change `[train]`, for examp
 
 ## 9. Documentation
 
+**New here? Follow [`docs/end-to-end-guide.md`](docs/end-to-end-guide.md)**: every step from a
+fresh laptop to a trained Rust base model, with expected output and times.
+
 To understand the code, start with [`docs/developer-guide.md`](docs/developer-guide.md) (design decisions
 and reasons, practices, how to extend) and [`docs/build-log.md`](docs/build-log.md) (how it was built
 and verified).

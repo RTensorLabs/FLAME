@@ -2,6 +2,7 @@
 
 | doc | read it when… |
 |---|---|
+| [end-to-end-guide.md](end-to-end-guide.md) | **the whole journey in order**: setup → build → test → sanity runs → Rust corpus → train the 30 M base → evaluate → when to scale to 100 M |
 | [developer-guide.md](developer-guide.md) | **start here to understand the code**: tour, data flow, every design decision and why, practices, how to extend |
 | [build-log.md](build-log.md) | how the code was built, in what order, bugs found and fixed, verification results |
 | [research-notes.md](research-notes.md) | you want the *why*: goals, hypothesis, research rules |
