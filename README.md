@@ -173,6 +173,10 @@ would load weights into a different model. You *may* change `[train]`, for examp
 
 ## 9. Documentation
 
+To understand the code, start with [`docs/developer-guide.md`](docs/developer-guide.md) (design decisions
+and reasons, practices, how to extend) and [`docs/build-log.md`](docs/build-log.md) (how it was built
+and verified).
+
 Everything important lives in [`docs/`](docs/README.md): research notes, roadmap, the design
 review, setup, the pause/resume guide, time estimates, the concepts behind each component,
 troubleshooting, and a lab-notebook template.
