@@ -23,7 +23,7 @@ fn tiny_train(max_steps: u64) -> TrainConfig {
     TrainConfig {
         seed: 7, micro_batch_size: 8, grad_accum_steps: 2, seq_len: 32, max_steps, lr: 3e-3, min_lr: 3e-4, warmup_steps: 10,
         weight_decay: 0.0, beta1: 0.9, beta2: 0.99, eps: 1e-8, grad_clip: 1.0, eval_every: 50, eval_batches: 2,
-        log_every: 50, checkpoint_every_minutes: 100.0, sample_every: 0,
+        log_every: 50, checkpoint_every_minutes: 100.0, sample_every: 0, init_from: None,
     }
 }
 

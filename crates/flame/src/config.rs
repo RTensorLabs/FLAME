@@ -106,6 +106,11 @@ pub struct TrainConfig {
     /// Print a text sample every N steps (0 = never). Only used when a tokenizer is available.
     #[serde(default)]
     pub sample_every: u64,
+    /// Staged training: start from the final weights of this earlier run (e.g. the previous
+    /// stage) instead of a random initialisation. Only used when this run has no checkpoint
+    /// yet; the model architecture must match. The optimizer starts fresh (use warmup).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub init_from: Option<String>,
 }
 
 impl TrainConfig {
@@ -120,7 +125,37 @@ pub struct DataConfig {
     /// Tokenizer JSON produced by `flame tokenizer ...`.
     pub tokenizer: String,
     /// Directory produced by `flame prepare` (contains train.bin / val.bin).
+    /// Use this for a single data source; use `sources` to mix several.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub dataset_dir: String,
+    /// Several prepared datasets mixed by weight, e.g.
+    /// `sources = [{ name = "code", dir = "data/rust-code", weight = 0.55 }, …]`.
+    /// Every sequence is drawn from one source, chosen with probability ∝ weight.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sources: Vec<DataSource>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DataSource {
+    pub name: String,
+    pub dir: String,
+    pub weight: f64,
+}
+
+impl DataConfig {
+    /// The data sources as (name, dir, normalised weight). A plain `dataset_dir` is one source.
+    pub fn resolved_sources(&self) -> Result<Vec<(String, String, f64)>> {
+        match (self.dataset_dir.is_empty(), self.sources.is_empty()) {
+            (false, true) => Ok(vec![("data".into(), self.dataset_dir.clone(), 1.0)]),
+            (true, false) => {
+                let total: f64 = self.sources.iter().map(|s| s.weight).sum();
+                anyhow::ensure!(total > 0.0 && self.sources.iter().all(|s| s.weight >= 0.0), "[data] source weights must be ≥ 0 and not all 0");
+                Ok(self.sources.iter().map(|s| (s.name.clone(), s.dir.clone(), s.weight / total)).collect())
+            }
+            _ => anyhow::bail!("[data] needs exactly one of `dataset_dir` or `sources`"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

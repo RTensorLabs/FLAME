@@ -1,46 +1,72 @@
 # FLAME end-to-end guide
 
-Everything from a fresh laptop to a trained Rust base model, in order. Every step lists
-**what to run, what you should see, and how long it takes** on an RTX 3070 Ti Laptop (8 GB).
-Commands are run from the `FLAME/` directory unless stated otherwise.
+Everything from a fresh laptop to a trained **Rust + English base model**, in order, written
+for beginners. Every step says **what to run, what you should see, and how long it takes**
+on an RTX 3070 Ti Laptop (8 GB) with about 6 hours of training time per week.
 
-The overall plan across the three repos:
+> New to the vocabulary (token, loss, epoch, stage, fine-tuning…)? Read
+> [beginners-guide.md](beginners-guide.md) first (10 minutes).
+
+Commands are run from the `FLAME/` folder unless stated otherwise. Lines starting with `#`
+are comments; you don't type them.
+
+## The whole plan at a glance
 
 ```text
-FLAME          ① setup → ② build → ③ test → ④ sanity runs → ⑤ Rust corpus → ⑥ train rust-30m (weeks)
-lintless       collect data (CPU, during ⑥) ─────────────────────────────► ⑦ fine-tune → evaluate
-flame-research independent experiments (TinyStories / synthetic), any time the GPU is free
-               ⑧ judge Lintless → good: use it · weak: more data → still weak: scale to 100 M
+FLAME            ① setup → ② build → ③ test → ④ sanity runs
+                 → ⑤ download data → ⑥ tokenizer + prepare
+                 → ⑦ pre-train stage 1 (≈ 75% of the time) → ⑧ pre-train stage 2 → ⑨ check the base model
+lintless         collect fine-tuning data on the CPU while ⑦–⑧ run ──────► fine-tune → evaluate → use
+flame-research   independent experiments whenever the GPU is free
+decision         ⑩ is Lintless on the 30 M model good enough? if not → 100 M
 ```
+
+| step | your time | computer time |
+|---|---|---|
+| ①–③ setup, build, test | ~1.5 h | – |
+| ④ sanity runs | 15 min | ~30 min |
+| ⑤–⑥ data | 15 min | 2–3 h (downloads + tokenising; unattended) |
+| ⑦–⑧ pre-training | a few minutes per session | 13–50 GPU hours → **2–8 weeks** of sessions |
+| ⑨ check | 15 min | 10 min |
 
 ---
 
 ## ① Setup (once, ~1 hour)
 
-Follow [setup.md](setup.md): WSL2 + Ubuntu, NVIDIA driver on Windows, CUDA toolkit in WSL,
-Rust, then clone the three repos **side by side**:
+You need Windows with WSL2 (Linux inside Windows), the NVIDIA driver, the CUDA toolkit and
+Rust. The full step-by-step is in [setup.md](setup.md). After it:
+
+```bash
+nvidia-smi          # shows "NVIDIA GeForce RTX 3070 Ti Laptop GPU"
+nvcc --version      # shows a CUDA version
+cargo --version     # shows a Rust version
+```
+
+Clone the three repositories **into the same folder** (they refer to each other as `../FLAME`):
 
 ```bash
 mkdir -p ~/code && cd ~/code
 git clone https://github.com/RTensorLabs/FLAME
-git clone https://github.com/RTensorLabs/flame-research
+git clone https://github.com/RTensorLabs/FLAME-Research flame-research
 git clone https://github.com/RTensorLabs/lintless
+cd FLAME
 ```
 
-Check: `nvidia-smi` shows the GPU, `nvcc --version` works, `cargo --version` works.
+Keep the code inside Linux (`~/code`), **not** under `/mnt/c/…`, which is several times slower.
 
 ## ② Build (~5 min the first time)
 
 ```bash
-cd ~/code/FLAME
 cargo build --release --features cuda
 echo 'export PATH="$HOME/code/FLAME/target/release:$PATH"' >> ~/.bashrc && source ~/.bashrc
-flame --help
+flame --help         # lists the commands
 ```
 
-- The CUDA build compiles GPU kernels the first time; later builds are fast.
-- If it fails with a compute-capability error: `export CUDA_COMPUTE_CAP=86`, then rebuild.
-- CPU-only build (works anywhere, much slower): `cargo build --release`.
+- `--release` builds optimised code (10–50× faster than a debug build). `--features cuda`
+  enables the GPU.
+- The first CUDA build compiles GPU kernels and takes a few minutes; later builds take seconds.
+- Error mentioning "compute capability": run `export CUDA_COMPUTE_CAP=86`, then build again.
+- No NVIDIA GPU? `cargo build --release` gives a CPU-only build (fine for ②–④, far too slow for ⑦).
 
 ## ③ Test (~1 min)
 
@@ -48,20 +74,14 @@ flame --help
 cargo test --release
 ```
 
-Expect every `test result: ok`. What the tests prove is listed in
-[developer-guide.md](developer-guide.md#4-practices): causality, overfitting, bit-exact
-pause/resume, Ctrl+C/PAUSE handling, and tokenizer round-trips.
+Every line should say `test result: ok`. These tests check that the model can't see future
+words, that it can memorise a small text, that pausing and resuming gives *exactly* the same
+result, that Ctrl+C and the PAUSE file save properly, that data mixing follows its weights,
+and that the tokenizer round-trips. If any test fails, stop and fix that first.
 
-Optional, if you ever change `nn.rs` or `model.rs` (needs `pip install torch safetensors`):
+## ④ Sanity runs: prove the setup works (~30 min)
 
-```bash
-flame export-reference --config configs/tiny-shakespeare.toml --out runs/refcheck
-python3 tools/reference_check.py runs/refcheck      # expect "OK", max diff ≈ 1e-6
-```
-
-## ④ Sanity runs: prove the GPU setup works (~30 min)
-
-**4a. Overfit gate (1 min).** A tiny model must memorise a paragraph.
+**4a. Overfit gate (1 min).** A tiny model must memorise one paragraph. If it can't, something is broken.
 
 ```bash
 flame tokenizer byte --out data/tokenizers/byte.json
@@ -69,117 +89,184 @@ flame prepare --input examples/overfit.txt --tokenizer data/tokenizers/byte.json
 flame train --config configs/overfit.toml --run runs/overfit
 ```
 
-Expect the first line `[flame] running on CUDA GPU 0` (if it says CPU, the build lacks
-`--features cuda`) and a final `val_loss` around **0.05**.
+You should see `running on CUDA GPU 0` (if it says CPU, you built without `--features cuda`),
+the loss falling, and at the end `best val_loss` ≈ **0.05**.
 
-**4b. Tiny Shakespeare (5–20 min).** Your first real training run, and your throughput measurement.
+**4b. Tiny Shakespeare (5–20 min).** Your first real training run, and a measurement of your GPU speed.
 
 ```bash
-curl -L -o data/raw/shakespeare.txt --create-dirs https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt
+curl -L --create-dirs -o data/raw/shakespeare.txt https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt
 flame prepare --input data/raw/shakespeare.txt --tokenizer data/tokenizers/byte.json --out data/shakespeare --separator "\n\n" --val-fraction 0.1
 flame train --config configs/tiny-shakespeare.toml --run runs/shakespeare
+```
+
+**Practise pausing now:** press **Ctrl+C** once in the middle. It saves and stops. Run the same
+`flame train …` command again: it prints `resumed from step …` and continues.
+
+```bash
 flame generate --run runs/shakespeare --prompt "ROMEO:" --max-tokens 300
 flame status --run runs/shakespeare
 ```
 
-Expect val loss ≈ 1.5 and Shakespeare-looking text. Try one pause: press Ctrl+C in the
-middle, rerun the same command, and check that it says `resumed from step …`.
+Expect val loss ≈ 1.5 and Shakespeare-looking text. **Write down** the
+`throughput … TFLOP/s achieved` number from `flame status`; all time estimates use it.
 
-**Write down** the `throughput … TFLOP/s achieved` line from `flame status`. Use it for every
-estimate from now on: `flame estimate --config configs/rust-30m.toml --tflops <your number>`.
-
-## ⑤ Build the Rust corpus (~1 hour, mostly downloading)
+**4c (optional, 3 min). Staged training smoke test.** Try the two-stage mechanism on toy data:
 
 ```bash
-tools/fetch_rust_corpus.sh                   # → data/raw/rust + ~/.cargo/registry/src (1–3 GB of .rs)
-flame tokenizer train --input data/raw/rust ~/.cargo/registry/src --ext rs \
-      --vocab-size 8192 --out data/tokenizers/rust-8k.json --sample-mb 200
-flame prepare --input data/raw/rust ~/.cargo/registry/src --ext rs \
-      --tokenizer data/tokenizers/rust-8k.json --out data/rust
-cat data/rust/meta.json
+REG=$(ls -d ~/.cargo/registry/src/*/ | head -1)
+flame tokenizer train --input $REG data/raw/shakespeare.txt --ext rs,txt --vocab-size 2048 --out data/tokenizers/smoke-mix-2k.json --sample-mb 4
+flame prepare --input $REG --ext rs --tokenizer data/tokenizers/smoke-mix-2k.json --out data/smoke-code
+flame prepare --input data/raw/shakespeare.txt --separator "\n\n" --tokenizer data/tokenizers/smoke-mix-2k.json --out data/smoke-english
+flame train --config configs/staged-smoke-stage1.toml --run runs/staged-smoke-stage1
+flame train --config configs/staged-smoke-stage2.toml --run runs/staged-smoke-stage2   # prints "stage start: weights from …"
+flame eval  --run runs/staged-smoke-stage2                                              # loss per source
 ```
 
-Check in `meta.json`:
-- `bytes_per_token` ≈ 3–4 (a good code tokenizer);
-- `train_tokens`: how much unique data you have.
+## ⑤ Download the pre-training data (2–3 h unattended, ~5–8 GB disk)
 
-**Match `max_steps` to your data.** One step is 2 × 64 × 1024 = 131 072 tokens. Repeating
-data up to about 4 epochs is nearly as good as fresh data (Muennighoff et al., 2023); more
-than that wastes GPU time. So:
-
-```text
-max_steps = min(10 000, 4 × train_tokens / 131 072)
-```
-
-For example, 300 M train tokens → `max_steps = 9 150`. Edit `configs/rust-30m.toml` **before** starting.
-
-## ⑥ Train the 30 M Rust base model (13–50 GPU hours → 2–8 weeks)
+The base model learns from four sources. What they are, their licences, and exactly how they
+are downloaded and extracted: [datasets.md](datasets.md).
 
 ```bash
-flame params   --config configs/rust-30m.toml
-flame estimate --config configs/rust-30m.toml --tflops <your number from 4b>
-flame train    --config configs/rust-30m.toml --run runs/rust-30m --max-minutes 45    # weekday
-flame train    --config configs/rust-30m.toml --run runs/rust-30m --max-minutes 210   # weekend
+tools/fetch_corpus.sh code       # Rust source code (git clones + cargo fetch)
+tools/fetch_corpus.sh docs       # English docs about Rust (the Book, RFCs, …)
+tools/fetch_corpus.sh errors     # the rustc explanation of every error code
+pip install pyarrow requests
+tools/fetch_corpus.sh english    # general English (FineWeb-Edu), 1.5 GB by default
+du -sh data/raw/* ~/.cargo/registry/src
 ```
 
-Run the same command each session; it resumes. Between sessions:
+Everything can be re-run; finished parts are skipped. If a clone fails (network), just run
+the same command again.
+
+## ⑥ Tokenizer + prepare (~30–60 min unattended)
+
+One tokenizer for everything (it can't change later), then each source is converted to
+token files separately so the training config can mix them:
 
 ```bash
-flame status   --run runs/rust-30m                              # progress, hours, time left
-flame generate --run runs/rust-30m --prompt "fn main() {" --temperature 0.7
-tail -n 5 runs/rust-30m/metrics.jsonl
+flame tokenizer train \
+  --input data/raw/rust-code ~/.cargo/registry/src data/raw/rust-docs data/raw/rustc-errors data/raw/english \
+  --ext rs,md,txt --vocab-size 8192 --out data/tokenizers/rust-en-8k.json --sample-mb 250
+
+T=data/tokenizers/rust-en-8k.json
+flame prepare --input data/raw/rust-code ~/.cargo/registry/src --ext rs  --tokenizer $T --out data/rust-code
+flame prepare --input data/raw/rust-docs                       --ext md  --tokenizer $T --out data/rust-docs
+flame prepare --input data/raw/rustc-errors                    --ext txt --tokenizer $T --out data/rustc-errors --val-fraction 0.05
+flame prepare --input data/raw/english                         --ext txt --tokenizer $T --out data/english
 ```
 
-**What healthy training looks like:**
-- the loss drops fast in the first ~500 steps, then slowly;
-- `val_loss` follows `loss` (a gap that keeps growing = over-fitting, too many epochs);
-- `gnorm` mostly below ~1–2 after warm-up;
-- samples go from symbol soup → Rust-looking tokens → plausible functions with matching braces.
+Check: each `prepare` prints its token count; `bytes/token` should be about 3–4.
 
-**Problems:** NaN → lower `lr`; out of memory → `micro_batch_size = 1`, `grad_accum_steps = 128`;
-slower than estimated → check thermals (`nvidia-smi -l 5`) and that you're not working in `/mnt/c`.
-See [troubleshooting.md](troubleshooting.md).
+## ⑦ Pre-train stage 1 (≈ 75% of the training time)
 
-**Meanwhile (CPU):** collect Lintless data, following `lintless/docs/end-to-end-guide.md` steps 3–4.
-
-## ⑦ Evaluate the base model (~10 min)
+Stage 1 learns Rust and English together: 59% code, 35% general English, 6% Rust docs.
 
 ```bash
-flame eval --run runs/rust-30m                      # val loss, perplexity, bits/token
-flame generate --run runs/rust-30m --prompt "impl Iterator for" --temperature 0.5
-flame generate --run runs/rust-30m --prompt "fn parse_config(path: &Path) -> Result<" --temperature 0.5
+flame params   --config configs/rust-30m-stage1.toml           # ≈ 30 M parameters
+flame estimate --config configs/rust-30m-stage1.toml --tflops <your number from 4b>
+flame train    --config configs/rust-30m-stage1.toml --run runs/rust-30m-stage1 --max-minutes 45
 ```
 
-Record the numbers in [lab-notebook.md](lab-notebook.md). Then go to Lintless (fine-tune,
-then evaluate).
+At the start, `flame train` prints the **data plan**: how many tokens it takes from each
+source and how often each is repeated. A ⚠ means a source would be repeated more than ~16
+times (memorised). Fix it by lowering that source's `weight` in the config, or by downloading
+more of it (for English: `ENGLISH_MB=3000 tools/fetch_corpus.sh english` + prepare again),
+**before** training for long.
 
-## ⑧ Deciding to scale up (30 M → 100 M)
+**Every session:** run the same `flame train …` line (`--max-minutes 45` on weekdays,
+`--max-minutes 210` at the weekend). It resumes automatically. You can shut the laptop down
+between sessions.
 
-Judge by **Lintless**, not by the base model's loss: the goal is fixing Rust errors. After
-`lintless eval` (see the Lintless guide):
+**Between sessions**, check progress:
 
-| Lintless result on the test set | action |
+```bash
+flame status   --run runs/rust-30m-stage1                         # % done, hours, time left
+flame generate --run runs/rust-30m-stage1 --prompt "fn main() {" --temperature 0.7
+flame generate --run runs/rust-30m-stage1 --prompt "The borrow checker" --temperature 0.7
+```
+
+**What healthy training looks like**
+- The loss drops quickly for the first few hundred steps, then slowly.
+- `val_loss` follows `loss` closely.
+- `gnorm` (gradient size) settles below ~1–2 after warm-up.
+- Samples improve from symbol soup, to Rust/English-looking words, to plausible code and sentences.
+
+**Problems:** loss becomes NaN → lower `lr` (e.g. 4e-4) and restart with `--fresh`; "out of
+memory" → set `micro_batch_size = 1` and `grad_accum_steps = 128`; much slower than the
+estimate → check temperatures with `nvidia-smi -l 5` (throttling) and the `/mnt/c` note in ①.
+More: [troubleshooting.md](troubleshooting.md).
+
+**Meanwhile:** collect Lintless data on the CPU (Lintless guide, step 4).
+
+## ⑧ Pre-train stage 2 (≈ 25% of the training time)
+
+Stage 2 starts from stage 1's final weights (`init_from = "runs/rust-30m-stage1"` in the
+config) and focuses: 50% code, 20% Rust docs, 0.5% rustc error explanations, and ~30% English
+**replayed** so it isn't forgotten. The learning rate is lower and decays to zero.
+
+```bash
+flame train --config configs/rust-30m-stage2.toml --run runs/rust-30m-stage2 --max-minutes 45
+```
+
+The first session prints `stage start: weights from runs/rust-30m-stage1/…`. Later sessions
+resume stage 2's own checkpoint. Same routine as stage 1.
+
+## ⑨ Check the base model (~10 min)
+
+```bash
+flame eval --run runs/rust-30m-stage2          # overall + per-source loss
+flame eval --run runs/rust-30m-stage1          # compare: stage 2 should be better on rust-docs
+flame generate --run runs/rust-30m-stage2 --prompt "impl Iterator for" --temperature 0.5
+flame generate --run runs/rust-30m-stage2 --prompt "error[E0382]: borrow of moved value" --temperature 0.5
+```
+
+`flame eval` prints the loss **for each source**. Stage 2 should improve on `rust-docs`
+without a big loss increase on `english` (that would mean forgetting). Record the numbers in
+[lab-notebook.md](lab-notebook.md).
+
+**Now fine-tune Lintless** on `runs/rust-30m-stage2`: see `lintless/docs/end-to-end-guide.md`.
+
+## ⑩ Deciding to scale up (30 M → 100 M)
+
+Judge by **Lintless** (the real task), not by the base model's loss:
+
+| Lintless result | action |
 |---|---|
-| "compiles" ≥ rustc-suggestion baseline overall, and clearly above it on codes rustc can't fix | **satisfactory**: keep 30 M, improve data |
-| below the baseline, but valid-looking code blocks almost always | more / more varied data (more seeds, more projects, clippy), 1–2 more epochs, then re-evaluate |
-| still below after doubling the data, **or** broken code / no code blocks | capacity-limited: **scale to 100 M** |
+| fixes compile at least as often as rustc's suggestions overall, and clearly more on errors rustc can't fix | **good enough**: keep 30 M, keep improving the data |
+| below rustc, but replies are well-formed code | **needs data**: double the Lintless data, re-evaluate |
+| still below after doubling the data, or broken / missing code | **needs capacity**: go to 100 M |
 
-Scaling up:
-1. Do the planned FLAME speed work first (TF32/bf16, fused attention). Without it 100 M takes months.
-2. `flame train --config configs/rust-100m.toml --run runs/rust-100m` (same tokenizer and data).
-3. In Lintless, set `base_run = "../FLAME/runs/rust-100m"` and fine-tune again; the data is reused.
+To go to 100 M: first the planned FLAME speed work (without it 100 M takes months), then
+`configs/rust-100m-stage1.toml` and `rust-100m-stage2.toml` (same data and tokenizer), then
+set Lintless's `base_run = "../FLAME/runs/rust-100m-stage2"` and fine-tune again.
 
-## Everyday command reference
+---
+
+## Command reference
 
 | task | command |
 |---|---|
 | build | `cargo build --release --features cuda` |
-| test | `cargo test --release` |
-| lint | `cargo clippy --workspace --all-targets` |
+| test / lint | `cargo test --release` · `cargo clippy --workspace --all-targets` |
+| download data | `tools/fetch_corpus.sh all\|code\|docs\|errors\|english` |
+| tokenizer | `flame tokenizer train --input … --vocab-size N --out F` · `flame tokenizer byte --out F` |
+| tokenise data | `flame prepare --input … --ext … --tokenizer T --out D` |
 | train / resume | `flame train --config C --run R [--max-minutes N]` |
-| pause | Ctrl+C · `touch R/PAUSE` · `--max-minutes` |
+| pause | Ctrl+C · create the file `R/PAUSE` · `--max-minutes` |
 | progress | `flame status --run R` |
-| sample | `flame generate --run R --prompt "…"` |
-| evaluate | `flame eval --run R` |
+| evaluate | `flame eval --run R` (per-source loss for mixes) |
+| sample text | `flame generate --run R --prompt "…" [--temperature T]` |
 | sizes / time | `flame params --config C` · `flame estimate --config C --tflops X` |
-| start over | `flame train … --fresh` (the old run is backed up, never deleted) |
+| start over | add `--fresh` (the old run is renamed to a backup, never deleted) |
+
+## Folder layout after everything
+
+```text
+FLAME/
+  data/raw/…            downloaded text (git-ignored)
+  data/tokenizers/…     tokenizers
+  data/<source>/        train.bin, val.bin, meta.json per source
+  runs/<run>/           config.toml, checkpoints/, best/, metrics.jsonl, sessions.log
+```

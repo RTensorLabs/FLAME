@@ -5,7 +5,7 @@ use candle_core::{Device, Tensor};
 use clap::{Parser, Subcommand};
 use flame::checkpoint;
 use flame::config::{save_toml, RunConfig};
-use flame::data::TokenDataset;
+use flame::data::MixedDataset;
 use flame::generate::{generate, SampleOptions};
 use flame::model::{LanguageModel, Transformer};
 use flame::tokenizer::{BpeTokenizer, Tokenizer};
@@ -163,18 +163,32 @@ fn main() -> Result<()> {
             println!("wrote byte tokenizer (vocab {}) to {}", Tokenizer::Byte.vocab_size(), out.display());
         }
         Cmd::Tokenizer(TokCmd::Train { input, vocab_size, out, sample_mb, ext }) => {
-            let files = collect_files(&input, &ext)?;
-            let mut sample = String::new();
+            // Every --input gets an equal share of the sample, so a small source (e.g. docs) is
+            // not drowned out by a big one (e.g. code); inside an input, files are sampled in a
+            // shuffled (seeded) order so the sample isn't just the alphabetically-first files.
             let budget = sample_mb * 1024 * 1024;
-            for f in &files {
-                if sample.len() >= budget {
-                    break;
+            let share = budget / input.len().max(1);
+            let mut sample = String::new();
+            let mut n_files = 0;
+            for inp in &input {
+                let mut files = collect_files(std::slice::from_ref(inp), &ext)?;
+                use rand::seq::SliceRandom;
+                files.shuffle(&mut <rand::rngs::StdRng as rand::SeedableRng>::seed_from_u64(7));
+                let mut taken = 0usize;
+                for f in &files {
+                    if taken >= share {
+                        break;
+                    }
+                    let mut buf = Vec::new();
+                    std::fs::File::open(f)?.take((share - taken) as u64).read_to_end(&mut buf)?;
+                    taken += buf.len();
+                    n_files += 1;
+                    sample.push_str(&String::from_utf8_lossy(&buf).replace(flame::tokenizer::EOS_TEXT, "\n"));
+                    sample.push('\n');
                 }
-                let mut buf = Vec::new();
-                std::fs::File::open(f)?.take((budget - sample.len()) as u64).read_to_end(&mut buf)?;
-                sample.push_str(&String::from_utf8_lossy(&buf).replace(flame::tokenizer::EOS_TEXT, "\n"));
+                println!("  {}: {:.1} MB sampled", inp.display(), taken as f64 / 1e6);
             }
-            println!("training BPE (vocab {vocab_size}) on {:.1} MB from {} file(s)…", sample.len() as f64 / 1e6, files.len());
+            println!("training BPE (vocab {vocab_size}) on {:.1} MB from {n_files} file(s)…", sample.len() as f64 / 1e6);
             let t = std::time::Instant::now();
             let tok = Tokenizer::Bpe(BpeTokenizer::train(&sample, vocab_size, true)?);
             ensure_parent(&out)?;
@@ -206,10 +220,17 @@ fn main() -> Result<()> {
         Cmd::Eval { run, batches, latest, cpu } => {
             let device = flame::select_device(cpu)?;
             let (cfg, _tok, model, _vm) = load_run(&run, &device, !latest)?;
-            let mut ds = TokenDataset::open(&cfg.data.dataset_dir, cfg.train.seq_len, cfg.train.micro_batch_size, cfg.train.seed)?;
+            let mut ds = MixedDataset::open(&cfg.data.resolved_sources()?, cfg.train.seq_len, cfg.train.micro_batch_size, cfg.train.seed)?;
             let val = flame::data::BatchSource::val_batches(&mut ds, batches, &device)?;
             let loss = flame::trainer::evaluate(&model, &val)?;
             println!("val_loss {loss:.4} | perplexity {:.2} | bits/token {:.3}", loss.exp(), loss / std::f64::consts::LN_2);
+            if ds.names.len() > 1 {
+                // per-source loss shows e.g. whether English was forgotten during a code-heavy stage
+                for i in 0..ds.names.len() {
+                    let l = flame::trainer::evaluate(&model, &ds.val_batches_of(i, batches.div_ceil(2), &device)?)?;
+                    println!("  {:<14} val_loss {l:.4} | perplexity {:.2}", ds.names[i], l.exp());
+                }
+            }
         }
         Cmd::Status { run, hours_per_week } => status(&run, hours_per_week)?,
         Cmd::Params { config } => {
@@ -427,13 +448,24 @@ fn train(config: &Path, run: &Path, max_minutes: Option<f64>, steps: Option<u64>
     let tok = Tokenizer::load(&cfg.data.tokenizer)?;
     anyhow::ensure!(cfg.train.seq_len <= cfg.model.max_seq_len, "train.seq_len must be ≤ model.max_seq_len");
     let (mut varmap, model) = flame::build_transformer(&cfg.model, &device, cfg.train.seed)?;
-    let mut data = TokenDataset::open(&cfg.data.dataset_dir, cfg.train.seq_len, cfg.train.micro_batch_size, cfg.train.seed)?;
-    println!(
-        "[flame] dataset: {:.1} M train tokens → this run sees {:.1} M tokens ({:.1} epochs)",
-        data.train.len() as f64 / 1e6,
-        (cfg.train.max_steps * cfg.train.tokens_per_step()) as f64 / 1e6,
-        (cfg.train.max_steps * cfg.train.tokens_per_step()) as f64 / data.train.len() as f64
-    );
+    let mut data = MixedDataset::open(&cfg.data.resolved_sources()?, cfg.train.seq_len, cfg.train.micro_batch_size, cfg.train.seed)?;
+    let total = (cfg.train.max_steps * cfg.train.tokens_per_step()) as f64;
+    println!("[flame] this run draws {:.1} M tokens:", total / 1e6);
+    for line in data.plan(total) {
+        println!("{line}");
+    }
+
+    // staged training: start from the previous stage's final weights (first session only)
+    if let Some(prev) = &cfg.train.init_from {
+        if checkpoint::find_latest(run).is_none() {
+            let prev = Path::new(prev);
+            let prev_cfg = RunConfig::load(prev.join("config.toml")).with_context(|| format!("init_from: {} is not a FLAME run", prev.display()))?;
+            anyhow::ensure!(prev_cfg.model == cfg.model, "init_from: {} has a different [model]; stages must share the architecture", prev.display());
+            anyhow::ensure!(prev_cfg.data.tokenizer == cfg.data.tokenizer, "init_from: {} uses a different tokenizer", prev.display());
+            let from = checkpoint::load_weights(prev, &mut varmap, false)?;
+            println!("[flame] stage start: weights from {} (optimizer starts fresh)", from.display());
+        }
+    }
     let dev2 = device.clone();
     let tok2 = tok.clone();
     let sampler = move |m: &Transformer| -> Result<String> {

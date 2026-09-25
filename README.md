@@ -9,7 +9,7 @@ It is one of three repositories:
 | repo | what it is | status |
 |---|---|---|
 | **FLAME** (this repo) | framework: tokenizer, Transformer, pausable trainer, CLI | Phase 1–2 done |
-| [flame-research](https://github.com/RTensorLabs/flame-research) | the research track: dynamically routed modular models vs dense/MoE baselines | ready to run experiments |
+| [flame-research](https://github.com/RTensorLabs/FLAME-Research) | the research track: dynamically routed modular models vs dense/MoE baselines | ready to run experiments |
 | [lintless](https://github.com/RTensorLabs/lintless) | the first application: the FLAME Rust base model **fine-tuned** to explain and fix Rust compiler errors | ready; needs the base model |
 
 Clone them **next to each other** (flame-research and lintless use FLAME via a relative path):
@@ -140,7 +140,7 @@ The full analysis for an **RTX 3070 Ti Laptop (8 GB)** with ~6 h of training per
 | Tiny Shakespeare | 0.9 M | 5–20 min | one evening |
 | TinyStories | 5.9 M | 0.5–1.5 h | one evening / one weekend |
 | research experiments (5 synthetic + 5 TinyStories runs) | ~5 M each | ≈ 5–12 h total | 1–2 weeks |
-| Rust base model (context 1024) | 30 M | 13–50 h | 2–8 weeks |
+| Rust + English base model, 2 stages (context 1024) | 30 M | 13–50 h | 2–8 weeks |
 | Lintless = fine-tune of that base model | 30 M | 10–40 min | one evening |
 | Rust base model | ~100 M | 60–230 h | 3–9 months (not recommended yet) |
 
@@ -165,9 +165,10 @@ Use `flame <command> --help` for all options.
 
 ## 8. Config files
 
-Included: `overfit`, `tiny-shakespeare`, `tinystories-5m`, `rust-30m` (the Rust base model that
-Lintless fine-tunes, context 1024) and `rust-smoke` (a tiny Rust model for testing the Lintless
-pipeline on a CPU in minutes).
+Included: `overfit`, `tiny-shakespeare`, `tinystories-5m`; `rust-30m-stage1` + `rust-30m-stage2`
+(the Rust + English base model that Lintless fine-tunes, trained in two stages on a data mix,
+context 1024); `rust-100m-stage1/2` (only if 30 M isn't enough); and small smoke-test configs
+(`rust-smoke`, `staged-smoke-stage1/2`) that run on a CPU in minutes.
 
 Configs are TOML with three sections, `[model]`, `[train]` and `[data]`. See `configs/`; every
 field is documented in `crates/flame/src/config.rs`. When a run starts, its config is frozen
@@ -177,8 +178,10 @@ would load weights into a different model. You *may* change `[train]`, for examp
 
 ## 9. Documentation
 
-**New here? Follow [`docs/end-to-end-guide.md`](docs/end-to-end-guide.md)**: every step from a
-fresh laptop to a trained Rust base model, with expected output and times.
+**New here?** Read [`docs/beginners-guide.md`](docs/beginners-guide.md) (the ideas, in plain words), then
+follow [`docs/end-to-end-guide.md`](docs/end-to-end-guide.md): every step from a fresh laptop to a
+trained Rust + English base model, with expected output and times. All datasets, with download
+links and extraction steps: [`docs/datasets.md`](docs/datasets.md).
 
 To understand the code, start with [`docs/developer-guide.md`](docs/developer-guide.md) (design decisions
 and reasons, practices, how to extend) and [`docs/build-log.md`](docs/build-log.md) (how it was built

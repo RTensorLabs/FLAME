@@ -55,7 +55,7 @@ hours          = FLOPs / (achieved TFLOP/s × 10¹²) / 3600
 | research: 5 TinyStories runs | `flame-research/configs/stories-*.toml` | ~5–6 M each | 98 M each | ~4e15 each | 0.5–2 h each ⇒ **3–8 h** | 1–2 weeks |
 | Lintless data (seeds) | – | – | – | – | seconds (CPU) | – |
 | Lintless data (cargo projects) | – | – | – | – | 1–3 h per 2 000 samples (CPU only; can run while you do other things) | – |
-| Rust base model (context 1024) | `configs/rust-30m.toml` | 30 M | 1.3 B | 2.7e17 | **13–50 h** (≈ 25) | **2–8 weeks** (≈ 4) |
+| Rust + English base model (stage 1 + 2, context 1024) | `configs/rust-30m-stage1.toml` + `stage2` | 30 M | 1.3 B | 2.7e17 | **13–50 h** (≈ 25) | **2–8 weeks** (≈ 4) |
 | Lintless fine-tune of the base model | `lintless/configs/finetune-30m.toml` | 30 M (all weights) | ≈ 7.5 M (5 000 samples × ~500 tokens × 3 epochs) | ≈ 1.5e15 | **10–40 min** | one evening |
 | Lintless evaluation (500 samples) | – | 30 M | – | – | 30–80 min (no KV cache yet) | one evening |
 | ~100 M base model | (not provided) | 98 M | 2 B | 1.3e18 | 60–230 h (≈ 115) | 3–9 months |

@@ -20,3 +20,4 @@ clap.workspace = true
 serde_json.workspace = true
 rayon.workspace = true
 walkdir.workspace = true
+rand.workspace = true

@@ -612,6 +612,7 @@ dependencies = [
  "candle-nn",
  "clap",
  "flame",
+ "rand",
  "rayon",
  "serde_json",
  "walkdir",

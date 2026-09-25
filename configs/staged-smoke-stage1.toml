@@ -1,0 +1,26 @@
+# Tiny two-stage pre-training test (CPU, ~3 min for both stages). Stage 1: code + English.
+# See docs/end-to-end-guide.md ("Smoke test of staged training") for the data commands.
+
+[model]
+d_model = 128
+n_layers = 2
+n_heads = 4
+max_seq_len = 1024
+
+[train]
+micro_batch_size = 8
+seq_len = 256
+max_steps = 100
+lr = 2e-3
+min_lr = 2e-4
+warmup_steps = 10
+eval_every = 50
+eval_batches = 4
+log_every = 25
+
+[data]
+tokenizer = "data/tokenizers/smoke-mix-2k.json"
+sources = [
+  { name = "code",    dir = "data/smoke-code",    weight = 0.6 },
+  { name = "english", dir = "data/smoke-english", weight = 0.4 },
+]

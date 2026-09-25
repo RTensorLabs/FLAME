@@ -1,0 +1,37 @@
+# Stage 2 of 2 — focused training ("annealing") of the 30M base model.
+# Starts from stage 1's final weights and spends the last 25% of the budget on the most
+# relevant data: more Rust docs (≈ 20%), the rustc error explanations (tiny, so a tiny weight: it is
+# still repeated ~10×), while ~30% general English is "replayed" so it isn't forgotten.
+# The learning rate starts lower and decays to 0.
+# 2500 steps × 2×64×1024 = 0.33 B tokens.
+# The result, runs/rust-30m-stage2, is the base model Lintless fine-tunes.
+
+[model]
+d_model = 512
+n_layers = 8
+n_heads = 8
+max_seq_len = 1024
+
+[train]
+init_from = "runs/rust-30m-stage1"
+micro_batch_size = 2
+grad_accum_steps = 64
+seq_len = 1024
+max_steps = 2500
+lr = 0.0003
+min_lr = 0.0
+warmup_steps = 100
+eval_every = 250
+eval_batches = 40
+log_every = 20
+sample_every = 1000
+checkpoint_every_minutes = 10
+
+[data]
+tokenizer = "data/tokenizers/rust-en-8k.json"
+sources = [
+  { name = "rust-code",    dir = "data/rust-code",    weight = 0.500 },
+  { name = "rust-docs",    dir = "data/rust-docs",    weight = 0.200 },
+  { name = "english",      dir = "data/english",      weight = 0.295 },
+  { name = "rustc-errors", dir = "data/rustc-errors", weight = 0.005 },
+]

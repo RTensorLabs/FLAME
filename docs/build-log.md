@@ -71,5 +71,14 @@ number in the lab notebook.
   trainer. Tested end to end on CPU: a tiny Rust base model (`configs/rust-smoke.toml`,
   1.5 min) → Lintless data (112 samples) → fine-tune paused at step 5 and resumed to 24 →
   eval (incl. the rustc-suggestion baseline) → `fix`.
+- **Data mixing and staged pre-training**: `[data] sources` mixes prepared datasets by weight
+  (`MixedDataset`, tested for proportions and determinism); `[train] init_from` starts a run
+  from another run's final weights; `flame eval` reports per-source loss; the tokenizer
+  trainer samples every `--input` equally. Tested with `configs/staged-smoke-stage1/2.toml`:
+  stage 2 loaded stage 1 and started at val loss 5.23 (random init ≈ 7.6).
+- **Corpus tools**: `tools/fetch_corpus.sh` (code, docs, errors, english) and
+  `tools/fetch_english.py`. Tested here: `errors` (518 explanations) and `docs` (2 279
+  Markdown files, 38 MB). `code` and `english` weren't run (download size, and Hugging Face is
+  blocked in the development sandbox).
 - **`rust-30m` context raised from 512 to 1024** (micro-batch 2 × accumulation 64, same
   tokens per step) so Lintless samples fit. See the context-length decision in the developer guide.

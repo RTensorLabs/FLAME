@@ -81,7 +81,6 @@ impl TokenFile {
     }
 }
 
-#[allow(dead_code)]
 pub fn write_token_file(path: impl AsRef<Path>, tokens: impl IntoIterator<Item = u32>) -> Result<u64> {
     let mut w = BufWriter::new(File::create(path)?);
     let mut n = 0u64;
@@ -183,5 +182,144 @@ impl BatchSource for InMemoryDataset {
     fn val_batches(&mut self, n: usize, device: &Device) -> Result<Vec<Batch>> {
         let mut rng = StdRng::seed_from_u64(0xFEED);
         (0..n).map(|_| self.batch(&mut rng, device)).collect()
+    }
+}
+
+/// Several token datasets mixed by weight (for pre-training on e.g. code + English + docs).
+///
+/// Each *sequence* in a batch comes from one source, picked with probability equal to its
+/// weight; within the source, a random window is taken as usual. Like [`TokenDataset`], the
+/// choice is a pure function of `(seed, step, micro)`, so pause/resume stays exact.
+pub struct MixedDataset {
+    pub names: Vec<String>,
+    pub train: Vec<TokenFile>,
+    pub val: Vec<TokenFile>,
+    /// Normalised weights (sum to 1).
+    pub weights: Vec<f64>,
+    pub seq_len: usize,
+    pub batch_size: usize,
+    pub seed: u64,
+}
+
+impl MixedDataset {
+    /// `sources`: (name, directory from `flame prepare`, normalised weight).
+    pub fn open(sources: &[(String, String, f64)], seq_len: usize, batch_size: usize, seed: u64) -> Result<Self> {
+        let mut ds = MixedDataset { names: vec![], train: vec![], val: vec![], weights: vec![], seq_len, batch_size, seed };
+        for (name, dir, w) in sources {
+            let dir = Path::new(dir);
+            let train = TokenFile::open(dir.join("train.bin")).with_context(|| format!("source '{name}'"))?;
+            let val = TokenFile::open(dir.join("val.bin")).with_context(|| format!("source '{name}'"))?;
+            for (split, f) in [("train", &train), ("val", &val)] {
+                anyhow::ensure!(f.len() > seq_len + 1, "source '{name}' {split}.bin has only {} tokens (need > {})", f.len(), seq_len + 1);
+            }
+            ds.names.push(name.clone());
+            ds.train.push(train);
+            ds.val.push(val);
+            ds.weights.push(*w);
+        }
+        Ok(ds)
+    }
+
+    fn pick(&self, rng: &mut StdRng) -> usize {
+        let r: f64 = rng.random();
+        let mut acc = 0.0;
+        for (i, w) in self.weights.iter().enumerate() {
+            acc += w;
+            if r < acc {
+                return i;
+            }
+        }
+        self.weights.len() - 1
+    }
+
+    fn batch(&self, files: &[TokenFile], rng: &mut StdRng, device: &Device) -> Result<Batch> {
+        let (b, t) = (self.batch_size, self.seq_len);
+        let mut inp = Vec::with_capacity(b * t);
+        let mut tgt = Vec::with_capacity(b * t);
+        for _ in 0..b {
+            let f = &files[self.pick(rng)];
+            let start = rng.random_range(0..f.len() - t - 1);
+            let window = f.slice(start, t + 1);
+            inp.extend_from_slice(&window[..t]);
+            tgt.extend_from_slice(&window[1..]);
+        }
+        Ok(Batch { input: Tensor::from_vec(inp, (b, t), device)?, target: Tensor::from_vec(tgt, (b, t), device)?, mask: None })
+    }
+
+    /// Human-readable summary: how many tokens each source contributes over `total_tokens`
+    /// and how many times its data is repeated (epochs). Repeating more than ~10–16× starts to
+    /// hurt (Muennighoff et al. 2023), so such sources are flagged.
+    pub fn plan(&self, total_tokens: f64) -> Vec<String> {
+        (0..self.names.len())
+            .map(|i| {
+                let drawn = total_tokens * self.weights[i];
+                let epochs = drawn / self.train[i].len() as f64;
+                format!(
+                    "  {:<14} weight {:>5.1}%  data {:>8.1} M tokens  drawn {:>8.1} M  ≈ {:>5.1} epochs{}",
+                    self.names[i],
+                    100.0 * self.weights[i],
+                    self.train[i].len() as f64 / 1e6,
+                    drawn / 1e6,
+                    epochs,
+                    if epochs > 16.0 { "  ⚠ heavily repeated: lower its weight or add data" } else { "" }
+                )
+            })
+            .collect()
+    }
+
+    /// Validation batches from a single source (for per-source validation loss).
+    pub fn val_batches_of(&self, source: usize, n: usize, device: &Device) -> Result<Vec<Batch>> {
+        let mut rng = StdRng::seed_from_u64(0xFEED);
+        let one = MixedDataset { names: vec![], train: vec![], val: vec![], weights: vec![1.0], seq_len: self.seq_len, batch_size: self.batch_size, seed: self.seed };
+        (0..n).map(|_| one.batch(std::slice::from_ref(&self.val[source]), &mut rng, device)).collect()
+    }
+}
+
+impl BatchSource for MixedDataset {
+    fn train_batch(&mut self, step: u64, micro: usize, device: &Device) -> Result<Batch> {
+        let mut rng = step_rng(self.seed, step, micro);
+        self.batch(&self.train, &mut rng, device)
+    }
+
+    fn val_batches(&mut self, n: usize, device: &Device) -> Result<Vec<Batch>> {
+        // the validation mixture uses the same weights, with a fixed seed
+        let mut rng = StdRng::seed_from_u64(0xFEED);
+        (0..n).map(|_| self.batch(&self.val, &mut rng, device)).collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn write(dir: &Path, name: &str, value: u32, n: usize) {
+        std::fs::create_dir_all(dir).unwrap();
+        write_token_file(dir.join(name), std::iter::repeat_n(value, n)).unwrap();
+    }
+
+    #[test]
+    fn mixture_follows_weights_and_is_deterministic() {
+        let root = std::env::temp_dir().join(format!("flame_mix_{}", std::process::id()));
+        for (src, v) in [("a", 1u32), ("b", 2u32)] {
+            write(&root.join(src), "train.bin", v, 1000);
+            write(&root.join(src), "val.bin", v, 100);
+        }
+        let sources = vec![("a".to_string(), root.join("a").to_string_lossy().to_string(), 0.8), ("b".to_string(), root.join("b").to_string_lossy().to_string(), 0.2)];
+        let mut ds = MixedDataset::open(&sources, 8, 50, 1).unwrap();
+        let mut count_a = 0;
+        let mut first = vec![];
+        for step in 0..40 {
+            let ids: Vec<u32> = ds.train_batch(step, 0, &Device::Cpu).unwrap().input.flatten_all().unwrap().to_vec1().unwrap();
+            count_a += ids.chunks(8).filter(|row| row[0] == 1).count();
+            if step == 3 {
+                first = ids;
+            }
+        }
+        let share = count_a as f64 / (40.0 * 50.0);
+        assert!((share - 0.8).abs() < 0.04, "share of source a = {share}");
+        let again: Vec<u32> = ds.train_batch(3, 0, &Device::Cpu).unwrap().input.flatten_all().unwrap().to_vec1().unwrap();
+        assert_eq!(first, again);
+        let val_b: Vec<u32> = ds.val_batches_of(1, 1, &Device::Cpu).unwrap()[0].input.flatten_all().unwrap().to_vec1().unwrap();
+        assert!(val_b.iter().all(|&x| x == 2));
     }
 }

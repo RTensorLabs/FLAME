@@ -1,0 +1,26 @@
+# Tiny two-stage pre-training test. Stage 2: starts from stage 1, shifts the mix, lower LR.
+
+[model]
+d_model = 128
+n_layers = 2
+n_heads = 4
+max_seq_len = 1024
+
+[train]
+init_from = "runs/staged-smoke-stage1"
+micro_batch_size = 8
+seq_len = 256
+max_steps = 50
+lr = 1e-3
+min_lr = 0.0
+warmup_steps = 5
+eval_every = 25
+eval_batches = 4
+log_every = 25
+
+[data]
+tokenizer = "data/tokenizers/smoke-mix-2k.json"
+sources = [
+  { name = "code",    dir = "data/smoke-code",    weight = 0.8 },
+  { name = "english", dir = "data/smoke-english", weight = 0.2 },
+]

@@ -189,6 +189,41 @@ comparable across runs with different seeds.
 **Val split by document** (every Nth document). Splitting by position could put half a
 document in train and half in val.
 
+### Data mixing and staged pre-training
+
+**Sources are prepared separately and mixed at training time** (`[data] sources = […]`,
+`MixedDataset`). Concatenating everything into one file would fix the proportions to whatever
+happened to be downloaded (gigabytes of code would drown megabytes of docs). With weights,
+the mix is a config decision, and each stage can use a different one without re-tokenising.
+
+**Mixing is per sequence**: each sequence comes entirely from one source, chosen with
+probability = weight. Sequences stay coherent (no half-code/half-English windows), and the
+choice is a function of `(seed, step, micro)`, so pause/resume stays exact.
+
+**The data plan is printed before training** (tokens drawn and epochs per source, with ⚠
+above 16 epochs). The most common mistake with mixes is silently repeating a small source
+dozens of times (Muennighoff et al., 2023: repetition beyond ~4 epochs brings diminishing
+returns, beyond ~16 it hurts). That's why the rustc error explanations (~0.1 M tokens) get
+only 0.5% in stage 2.
+
+**Two stages instead of English → docs → errors as separate stages.** Pure sequential stages
+make a model forget earlier stages (catastrophic forgetting), and tiny sources can't be a
+stage of their own (they would be memorised). So: stage 1 is a broad mix (code 59%, English
+35%, docs 6%); stage 2 starts from stage 1 with a lower, decaying learning rate and a focused
+mix (code 50%, docs 20%, errors 0.5%) that **replays** ~30% English. This follows recent
+practice of finishing pre-training on high-quality, relevant data while the learning rate
+anneals (OLMo 2, LLaMA 3). Whether it beats a single mixed run at our scale is an open
+question: a good flame-research experiment.
+
+**`init_from` loads weights only; the optimizer restarts.** Stage 2 has a different LR
+schedule anyway, and a short warm-up handles the fresh Adam moments. It's only applied when
+the run has no checkpoint of its own, so resuming stage 2 never reloads stage 1 by accident.
+The architecture and tokenizer must match (checked).
+
+**One tokenizer for all sources and stages**, trained on an equal-share sample of every
+input, so English and docs get proper tokens even though code dominates by volume. The
+vocabulary can't change between stages because the embedding matrix has one row per token.
+
 ### Optimisation
 
 **Hand-written AdamW** instead of `candle_nn::AdamW`. Candle's optimiser keeps its moment

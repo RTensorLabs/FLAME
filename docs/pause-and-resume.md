@@ -62,11 +62,11 @@ over three sessions, and checks the final weights are **bit-for-bit equal**.
 
 ```bash
 # Monday evening (45 min)
-flame train --config configs/rust-30m.toml --run runs/rust-30m --max-minutes 45
+flame train --config configs/rust-30m-stage1.toml --run runs/rust-30m-stage1 --max-minutes 45
 # Saturday (3.5 h)
-flame train --config configs/rust-30m.toml --run runs/rust-30m --max-minutes 210
+flame train --config configs/rust-30m-stage1.toml --run runs/rust-30m-stage1 --max-minutes 210
 # any time
-flame status --run runs/rust-30m
+flame status --run runs/rust-30m-stage1
 ```
 
 ## Extending or restarting a run

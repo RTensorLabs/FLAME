@@ -19,15 +19,15 @@ Status legend: ✅ done · 🟡 ready to run (code exists, needs your GPU time) 
 | 3 | bf16/TF32 + fused attention (speed) | ⬜ |
 | 3 | memory-efficient attention (recompute in backward) → contexts of 2k–8k | ⬜ |
 | 4 | Rust code corpus + 8k BPE | 🟡 (see below) |
-| 4 | 30 M Rust base model (`configs/rust-30m.toml`) | 🟡 (2–8 weeks of evenings) |
-| 4 | ~100 M model (`configs/rust-100m.toml`) | ⬜ only if Lintless on 30 M isn't good enough (end-to-end guide ⑧), after the speed work |
+| 4 | data mixing (weighted sources) + staged pre-training (`init_from`) | ✅ |
+| 4 | 30 M Rust + English base model (`configs/rust-30m-stage1.toml` → `stage2`) | 🟡 (2–8 weeks of evenings) |
+| 4 | ~100 M model (`configs/rust-100m-stage1/2.toml`) | ⬜ only if Lintless on 30 M isn't good enough (end-to-end guide ⑧), after the speed work |
 
-### Building the Rust corpus (Phase 4)
+### Building the corpus (Phase 4)
 
-`tools/fetch_rust_corpus.sh` downloads ~1–3 GB of Rust source (shallow clones of large Rust
-projects + popular crates via cargo), then tokenizer training and `flame prepare` follow.
-Step by step, including how to match `max_steps` to the amount of data:
-[end-to-end-guide.md ⑤](end-to-end-guide.md#-build-the-rust-corpus-1-hour-mostly-downloading).
+`tools/fetch_corpus.sh` downloads and extracts the four sources (Rust code, Rust docs, rustc
+error explanations, English). Details and licences: [datasets.md](datasets.md). Steps:
+[end-to-end-guide.md ⑤–⑧](end-to-end-guide.md).
 
 ## flame-research
 

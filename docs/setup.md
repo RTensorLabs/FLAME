@@ -23,7 +23,7 @@ Candle's CUDA build is simplest on Linux, and WSL2 gives you Linux with full GPU
    ```bash
    mkdir -p ~/code && cd ~/code
    git clone https://github.com/RTensorLabs/FLAME
-   git clone https://github.com/RTensorLabs/flame-research
+   git clone https://github.com/RTensorLabs/FLAME-Research flame-research
    git clone https://github.com/RTensorLabs/lintless
    ```
 5. **Build with CUDA**:
