@@ -10,9 +10,9 @@ It is one of three repositories:
 |---|---|---|
 | **FLAME** (this repo) | framework: tokenizer, Transformer, pausable trainer, CLI | Phase 1–2 done |
 | [flame-research](https://github.com/RTensorLabs/flame-research) | the research track: dynamically routed modular models vs dense/MoE baselines | ready to run experiments |
-| [lintless](https://github.com/RTensorLabs/lintless) | the first application: explains and fixes Rust compiler errors | ready to collect data & train |
+| [lintless](https://github.com/RTensorLabs/lintless) | the first application: the FLAME Rust base model **fine-tuned** to explain and fix Rust compiler errors | ready; needs the base model |
 
-Clone them **next to each other** (flame-research uses FLAME via a relative path):
+Clone them **next to each other** (flame-research and lintless use FLAME via a relative path):
 
 ```text
 code/
@@ -140,8 +140,8 @@ The full analysis for an **RTX 3070 Ti Laptop (8 GB)** with ~6 h of training per
 | Tiny Shakespeare | 0.9 M | 5–20 min | one evening |
 | TinyStories | 5.9 M | 0.5–1.5 h | one evening / one weekend |
 | research experiments (5 synthetic + 5 TinyStories runs) | ~5 M each | ≈ 5–12 h total | 1–2 weeks |
-| Lintless fine-tune (0.5 B LoRA) | 0.5 B (8 M trained) | 1–2 h | one weekend |
-| Rust base model | 30 M | 12–47 h | 2–8 weeks |
+| Rust base model (context 1024) | 30 M | 13–50 h | 2–8 weeks |
+| Lintless = fine-tune of that base model | 30 M | 10–40 min | one evening |
 | Rust base model | ~100 M | 60–230 h | 3–9 months (not recommended yet) |
 
 Measure your real speed after 10 minutes of training with `flame status`. It prints your
@@ -164,6 +164,10 @@ flame export-reference         bundle for tools/reference_check.py (PyTorch cros
 Use `flame <command> --help` for all options.
 
 ## 8. Config files
+
+Included: `overfit`, `tiny-shakespeare`, `tinystories-5m`, `rust-30m` (the Rust base model that
+Lintless fine-tunes, context 1024) and `rust-smoke` (a tiny Rust model for testing the Lintless
+pipeline on a CPU in minutes).
 
 Configs are TOML with three sections, `[model]`, `[train]` and `[data]`. See `configs/`; every
 field is documented in `crates/flame/src/config.rs`. When a run starts, its config is frozen

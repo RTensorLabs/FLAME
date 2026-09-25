@@ -17,6 +17,7 @@ Status legend: ✅ done · 🟡 ready to run (code exists, needs your GPU time) 
 | 3 | infrastructure: split crates only when needed (currently `flame` + `flame-cli`) | ✅ (deliberately minimal) |
 | 3 | KV cache for generation | ⬜ |
 | 3 | bf16/TF32 + fused attention (speed) | ⬜ |
+| 3 | memory-efficient attention (recompute in backward) → contexts of 2k–8k | ⬜ |
 | 4 | Rust code corpus + 8k BPE | 🟡 (see below) |
 | 4 | 30 M Rust base model (`configs/rust-30m.toml`) | 🟡 (2–8 weeks of evenings) |
 | 4 | ~100 M model | ⬜ (after the speed work) |
@@ -46,6 +47,7 @@ specialisation analysis → residency simulation → only then a real streaming 
 
 ## Lintless
 
-v1: seed + project mutations → 0.5 B LoRA → evaluate vs the base model → `lintless fix`.
-v2: clippy data, a 1.5 B QLoRA, more mutation operators. v3: fine-tune the FLAME Rust base
-model on the same data and compare.
+Lintless is the FLAME Rust base model fine-tuned on compiler-diagnostic data (all Rust).
+v1: collect data (seeds + your crates, CPU, while the base model trains) → fine-tune the
+30 M base (one evening) → evaluate against rustc's own suggestions → `lintless fix`.
+v2: more mutation operators and clippy data, a KV cache for faster generation, longer context.

@@ -9,7 +9,7 @@ Candle's CUDA build is simplest on Linux, and WSL2 gives you Linux with full GPU
 2. **WSL2**: in an admin PowerShell run `wsl --install -d Ubuntu`, then reboot.
 3. **Inside Ubuntu**:
    ```bash
-   sudo apt update && sudo apt install -y build-essential pkg-config git curl python3-venv
+   sudo apt update && sudo apt install -y build-essential pkg-config git curl
    # CUDA toolkit for WSL (gives nvcc); pick the current version from
    # https://developer.nvidia.com/cuda-downloads → Linux → x86_64 → WSL-Ubuntu
    sudo apt install -y cuda-toolkit
@@ -45,14 +45,13 @@ and Rust (MSVC toolchain), all on the same PATH. Build from the *x64 Native Tool
 Everything also runs on the CPU (`cargo build --release`, then add `--cpu` to commands).
 That's fine for the tests, the overfit gate and Tiny Shakespeare, but 10–50× slower than the GPU.
 
-## Python (for Lintless and tools/reference_check.py)
+## Python (optional)
+
+Only `tools/reference_check.py` (the PyTorch cross-check of FLAME's forward pass) uses Python:
 
 ```bash
-cd ~/code/lintless
 python3 -m venv .venv && source .venv/bin/activate
-pip install torch --index-url https://download.pytorch.org/whl/cu124   # CUDA build of PyTorch
-pip install -r requirements.txt
-python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name())"
+pip install torch safetensors          # the CPU build is enough for this check
 ```
 
 ## Check everything
@@ -60,5 +59,5 @@ python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_
 ```bash
 cd ~/code/FLAME && cargo test --release
 cd ~/code/flame-research && cargo test --release
-cd ~/code/lintless && python -m pytest tests -q
+cd ~/code/lintless && cargo test --release
 ```

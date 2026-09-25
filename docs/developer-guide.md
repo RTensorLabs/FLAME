@@ -104,9 +104,24 @@ the CLI. → Extract a crate when a boundary actually hurts, e.g. when the runti
 `nn` + `model` without the trainer.
 
 **Separate repos for the research and Lintless.** They have different lifecycles: the
-research is experimental and changes daily, Lintless is Python. FLAME stays a stable base.
-flame-research depends on FLAME by relative path (`../FLAME/crates/flame`) so both can be
-edited together on one laptop without publishing versions.
+research is experimental and changes daily; Lintless is an application (data pipeline +
+fine-tuning + a `fix` tool). FLAME stays a stable base. Both depend on FLAME by relative
+path (`../FLAME/crates/flame`), so everything can be edited together on one laptop without
+publishing versions.
+
+**Lintless is a fine-tune of a FLAME model, not of an external one.** That is the plan in
+the research notes (base model → diagnostic data → instruction tuning). It keeps the whole
+stack in Rust and owned end to end, and it doubles as the test of whether a small
+from-scratch domain model is useful. It reuses FLAME's `Transformer`, tokenizer, `Trainer`
+(pause/resume included) and `generate` unchanged; the only new FLAME-facing code is a
+`BatchSource` for masked instruction data.
+
+**Context length 1024 for the Rust base model.** Lintless needs a diagnostic + a code window
++ the fix in one sequence (≈ 500–700 tokens). FLAME's attention stores the full T×T score
+matrix several times per layer for the backward pass, so memory grows with T²: 1024 fits in
+8 GB at micro-batch 2, while 2048 leaves no headroom and 8192 would need ~100 GB. Candle's
+fused softmax has no backward pass, so longer contexts need a memory-efficient
+(recompute-based) attention in FLAME first. That is on the roadmap.
 
 ### Model
 

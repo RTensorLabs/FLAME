@@ -63,3 +63,13 @@ the build toolchain. See `setup.md`.
 0.89 M-param model, batch 32 × 256, on 4 CPU cores: ~1 800 tokens/s, i.e. ~3.8 h for the full
 Tiny Shakespeare config. The GPU should be 20–100× faster on this model. Record your real
 number in the lab notebook.
+
+## Later changes
+
+- **Lintless rebuilt in Rust on top of FLAME** (it was first prototyped in Python on a
+  pretrained model, which did not match the plan). It now fine-tunes a FLAME run with FLAME's
+  trainer. Tested end to end on CPU: a tiny Rust base model (`configs/rust-smoke.toml`,
+  1.5 min) → Lintless data (112 samples) → fine-tune paused at step 5 and resumed to 24 →
+  eval (incl. the rustc-suggestion baseline) → `fix`.
+- **`rust-30m` context raised from 512 to 1024** (micro-batch 2 × accumulation 64, same
+  tokens per step) so Lintless samples fit. See the context-length decision in the developer guide.

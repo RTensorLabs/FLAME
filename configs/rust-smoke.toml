@@ -1,0 +1,23 @@
+# Tiny Rust model for testing the FLAME → Lintless pipeline end to end on a CPU (~5 min).
+# Not useful as a model; use rust-30m.toml for the real thing.
+
+[model]
+d_model = 128
+n_layers = 2
+n_heads = 4
+max_seq_len = 1024
+
+[train]
+micro_batch_size = 8
+seq_len = 256
+max_steps = 150
+lr = 2e-3
+min_lr = 2e-4
+warmup_steps = 20
+eval_every = 50
+eval_batches = 4
+log_every = 25
+
+[data]
+tokenizer = "data/tokenizers/rust-smoke-2k.json"
+dataset_dir = "data/rust-smoke"

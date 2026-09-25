@@ -44,8 +44,8 @@ metrics.jsonl             every log/eval line (may contain a few repeated steps 
 sessions.log              when each session started and why it stopped
 ```
 
-Lintless (`runs/lintless-*/`): Hugging Face `checkpoint-<step>/` directories (adapter,
-optimizer, scheduler, RNG state; the last 2 are kept), `sessions.log`, and `final/` when done.
+Lintless fine-tunes use FLAME's trainer, so `runs/lintless-*/` has exactly the same layout
+(plus `tokenizer.json` and `finetune.toml`). Everything on this page applies to them too.
 
 ## Why resume is exact
 

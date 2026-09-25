@@ -67,5 +67,6 @@ fits in cache. Record routing traces and replay them through a simulated memory 
   matches PyTorch to 5e-7) and keep the "overfit a tiny dataset" gate ✅.
 - **Don't split into 8 crates up front ✅**: FLAME has one library crate + one CLI crate;
   extract more when boundaries hurt.
-- **Lintless and the research are separate projects ✅**: Lintless fine-tunes an existing
-  small code model (hours), rather than waiting for a from-scratch FLAME base model (weeks).
+- **Lintless and the research are separate projects ✅**: separate repos, both built on
+  FLAME. Lintless fine-tunes the FLAME Rust base model, as in the original plan; its data
+  collection can run on the CPU while the base model trains.

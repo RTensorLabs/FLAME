@@ -32,8 +32,7 @@ below by ~1.7.
 - **FLAME (Candle, FP32, un-fused kernels, no flash-attention):** assume **1.5–6 TFLOP/s**,
   about 3 on average. Models under ~2 M params are limited by kernel-launch overhead, not FLOPs,
   so they are slower than the formula says.
-- **Lintless (PyTorch, bf16 tensor cores, LoRA):** assume **8–15 TFLOP/s** for 0.5 B,
-  **4–8 TFLOP/s** for 1.5 B in 4-bit (dequantisation overhead).
+- **Lintless** is a FLAME fine-tune, so it has the same throughput as FLAME.
 
 ## The formula
 
@@ -56,9 +55,9 @@ hours          = FLOPs / (achieved TFLOP/s × 10¹²) / 3600
 | research: 5 TinyStories runs | `flame-research/configs/stories-*.toml` | ~5–6 M each | 98 M each | ~4e15 each | 0.5–2 h each ⇒ **3–8 h** | 1–2 weeks |
 | Lintless data (seeds) | – | – | – | – | seconds (CPU) | – |
 | Lintless data (cargo projects) | – | – | – | – | 1–3 h per 2 000 samples (CPU only; can run while you do other things) | – |
-| Lintless fine-tune | `lintless/configs/qwen-0.5b.toml` | 0.5 B (≈ 9 M trained) | ≈ 6 M | ≈ 2.4e16 | **1–2 h** | one weekend |
-| Lintless fine-tune (better) | `lintless/configs/qwen-1.5b.toml` | 1.5 B, 4-bit | ≈ 6 M | ≈ 7e16 | **3–6 h** | 1–2 weekends |
-| Rust base model | `configs/rust-30m.toml` | 30 M | 1.3 B | 2.5e17 | **12–47 h** (≈ 23) | **2–8 weeks** (≈ 4) |
+| Rust base model (context 1024) | `configs/rust-30m.toml` | 30 M | 1.3 B | 2.7e17 | **13–50 h** (≈ 25) | **2–8 weeks** (≈ 4) |
+| Lintless fine-tune of the base model | `lintless/configs/finetune-30m.toml` | 30 M (all weights) | ≈ 7.5 M (5 000 samples × ~500 tokens × 3 epochs) | ≈ 1.5e15 | **10–40 min** | one evening |
+| Lintless evaluation (500 samples) | – | 30 M | – | – | 30–80 min (no KV cache yet) | one evening |
 | ~100 M base model | (not provided) | 98 M | 2 B | 1.3e18 | 60–230 h (≈ 115) | 3–9 months |
 
 Modular research models do extra work per step: a host sync for routing decisions and
@@ -68,9 +67,10 @@ the same FLOPs** at this scale. That overhead is itself a finding; record it.
 ### What this means in practice
 
 - Phases 1–2 (FLAME) and the whole first research round fit in **the first 2–3 weeks**.
-- Lintless v1 (0.5 B LoRA) is a **single weekend** once the data is collected.
 - The 30 M Rust base model is a **1–2 month background project**: train it on weekday
-  evenings with `--max-minutes 45`.
+  evenings with `--max-minutes 45`. Lintless depends on it.
+- Once the base model exists, the Lintless fine-tune takes **one evening**. Collect the
+  Lintless data (CPU only) while the base model trains.
 - **Skip ~100 M for now.** It needs about 4 months of your GPU time. If you need it later,
   first add bf16/TF32 matmuls and flash-attention to FLAME; that alone is worth 2–4× speed.
 
@@ -83,8 +83,8 @@ Training memory ≈ **16 bytes per parameter** (fp32 weights 4 + grads 4 + AdamW
 | 6 M | 0.1 GB | easily |
 | 30 M | 0.5 GB | yes; activations dominate, keep micro-batch 8 at seq 512 |
 | 100 M | 1.6 GB | yes, with micro-batch 4 × seq 1024 and gradient accumulation |
-| 0.5 B LoRA (bf16) | ≈ 1.2 GB + activations | yes |
-| 1.5 B QLoRA (4-bit) | ≈ 1.5 GB + activations | yes (≈ 5–6 GB peak) |
+| 30 M at context 1024 | 0.5 GB + ≈ 1.6 GB attention per 2 sequences | yes, micro-batch 2 × accumulation 64 |
+| 30 M at context 2048 | 0.5 GB + ≈ 6.4 GB per sequence | no headroom: needs memory-efficient attention first |
 
 Attention activations grow with `micro_batch × heads × seq_len²`. **If you run out of memory,
 halve `micro_batch_size` and double `grad_accum_steps`.** The effective batch, the results
