@@ -102,6 +102,7 @@ impl Tokenizer {
 /// * an identifier-like run `[A-Za-z_][A-Za-z0-9_]*` (or any non-ASCII alphabetic run),
 /// * a run of digits (at most 3 per chunk, so numbers don't explode the vocab),
 /// * a run of punctuation,
+///
 /// each optionally preceded by ONE space; newlines + following indentation form one chunk.
 pub fn pretokenize(text: &str) -> Vec<&str> {
     #[derive(PartialEq, Clone, Copy)]
@@ -162,7 +163,7 @@ pub fn pretokenize(text: &str) -> Vec<&str> {
                 while i < n && class(chars[i].1) == Class::Newline {
                     i += 1;
                 }
-                while i < n && chars[i].1 == ' ' || i < n && chars[i].1 == '\t' {
+                while i < n && (chars[i].1 == ' ' || chars[i].1 == '\t') {
                     i += 1;
                 }
             }

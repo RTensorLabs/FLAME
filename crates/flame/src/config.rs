@@ -51,8 +51,8 @@ impl ModelConfig {
 
     pub fn validate(&self) -> Result<()> {
         anyhow::ensure!(self.vocab_size > 0, "vocab_size must be set (it is normally taken from the tokenizer)");
-        anyhow::ensure!(self.d_model % self.n_heads == 0, "d_model must be divisible by n_heads");
-        anyhow::ensure!(self.head_dim() % 2 == 0, "head_dim must be even for RoPE");
+        anyhow::ensure!(self.d_model.is_multiple_of(self.n_heads), "d_model must be divisible by n_heads");
+        anyhow::ensure!(self.head_dim().is_multiple_of(2), "head_dim must be even for RoPE");
         Ok(())
     }
 }

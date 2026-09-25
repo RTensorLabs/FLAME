@@ -1,5 +1,6 @@
 # First real training run: character-level (byte) model on Tiny Shakespeare (~1 MB).
-# ~0.8 M parameters. ≈ 10–20 min on an RTX 3070 Ti laptop GPU, ~1–2 h on CPU.
+# ~0.9 M parameters. ≈ 5–20 min on an RTX 3070 Ti laptop GPU (tiny models are limited by
+# kernel-launch overhead, not FLOPs), ≈ 4 h on a 4-core CPU.
 # Expected result: val_loss ≈ 1.5 (nanoGPT's char model reaches ≈ 1.47 with 10 M params).
 
 [model]

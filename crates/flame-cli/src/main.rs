@@ -297,7 +297,7 @@ fn prepare(inputs: &[PathBuf], tok_path: &Path, out: &Path, val_fraction: f64, s
                 continue;
             }
             *n_docs += 1;
-            let target = if *n_docs % val_every == 0 { &mut val_tokens } else { &mut train_tokens };
+            let target = if n_docs.is_multiple_of(val_every) { &mut val_tokens } else { &mut train_tokens };
             target.extend_from_slice(&ids);
             target.push(eos);
         }

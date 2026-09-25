@@ -1,6 +1,6 @@
-# Dense baseline for the research track: ~5 M parameters on TinyStories with a 4096-token BPE.
+# First "real" language model: ~5.9 M parameters on TinyStories with a 4096-token BPE.
 # 6 000 steps × 64 × 256 tokens ≈ 98 M tokens (~20 tokens/param, "Chinchilla-optimal").
-# Estimate on an RTX 3070 Ti laptop: ≈ 1–2.5 h  → one weekend session or 2–3 weekday evenings.
+# Estimate on an RTX 3070 Ti laptop: ≈ 0.5–1.5 h → one weekday evening or part of a weekend session.
 
 [model]
 d_model = 256
