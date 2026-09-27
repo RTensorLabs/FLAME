@@ -178,6 +178,11 @@ would load weights into a different model. You *may* change `[train]`, for examp
 
 ## 9. Documentation
 
+> **📘 Start with the universal guide: [`docs/universal/01-complete-guide.md`](docs/universal/01-complete-guide.md).**
+> It explains the whole project (FLAME, flame-research, Lintless) from zero: the basics, the datasets,
+> every command, and a step-by-step plan. Then [`docs/universal/02-getting-the-most.md`](docs/universal/02-getting-the-most.md).
+> How the code is built, with diagrams: [`docs/architecture.md`](docs/architecture.md).
+
 **New here?** Read [`docs/beginners-guide.md`](docs/beginners-guide.md) (the ideas, in plain words), then
 follow [`docs/end-to-end-guide.md`](docs/end-to-end-guide.md): every step from a fresh laptop to a
 trained Rust + English base model, with expected output and times. All datasets, with download
