@@ -447,6 +447,15 @@ this run will read; "epochs" = how many times it will re-read it. A ⚠ appears 
 
 ---
 
+### 7.1 Faster: a rented GPU
+
+With cloud credit (e.g. vast.ai), the whole 30 M model trains in a few hours on one H100,
+A100 or RTX 4090 for a few dollars, instead of weeks on the laptop. Follow
+[../cloud-gpu-guide.md](../cloud-gpu-guide.md): it covers choosing the GPU, cost, a one-command
+setup script, training, and copying the results home.
+
+---
+
 ## 9. When something goes wrong
 
 | symptom | cause | fix |

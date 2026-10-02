@@ -43,7 +43,13 @@ pub fn select_device(force_cpu: bool) -> Result<Device> {
     if d.is_cpu() {
         eprintln!("[flame] running on CPU (build with `--features cuda` to use an NVIDIA GPU)");
     } else {
-        eprintln!("[flame] running on CUDA GPU 0");
+        // TF32: matrix multiplications use the tensor cores with a 10-bit mantissa (instead
+        // of 23) while storage and accumulation stay fp32. Standard practice for training;
+        // 2–8× faster matmuls on Ampere/Hopper data-centre GPUs (A100, H100), smaller gains
+        // on consumer cards. Set FLAME_TF32=0 for exact fp32.
+        let tf32 = std::env::var("FLAME_TF32").map(|v| v != "0").unwrap_or(true);
+        candle_core::cuda::set_gemm_reduced_precision_f32(tf32);
+        eprintln!("[flame] running on CUDA GPU 0 (TF32 matmuls {})", if tf32 { "on; FLAME_TF32=0 to disable" } else { "off" });
     }
     Ok(d)
 }

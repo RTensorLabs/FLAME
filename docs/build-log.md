@@ -82,3 +82,8 @@ number in the lab notebook.
   blocked in the development sandbox).
 - **`rust-30m` context raised from 512 to 1024** (micro-batch 2 × accumulation 64, same
   tokens per step) so Lintless samples fit. See the context-length decision in the developer guide.
+- **TF32 on GPUs** (default, `FLAME_TF32=0` to disable): fp32 matmuls use the tensor cores via
+  `candle_core::cuda::set_gemm_reduced_precision_f32`. Applies to flame-research and Lintless
+  too (shared `select_device`). Not measured yet (no GPU in the development sandbox).
+- **Cloud training**: `tools/cloud_setup.sh` (one-shot setup of a rented GPU machine) and
+  `docs/cloud-gpu-guide.md`.

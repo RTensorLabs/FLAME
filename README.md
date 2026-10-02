@@ -182,6 +182,7 @@ would load weights into a different model. You *may* change `[train]`, for examp
 > It explains the whole project (FLAME, flame-research, Lintless) from zero: the basics, the datasets,
 > every command, and a step-by-step plan. Then [`docs/universal/02-getting-the-most.md`](docs/universal/02-getting-the-most.md).
 > How the code is built, with diagrams: [`docs/architecture.md`](docs/architecture.md).
+> Training on a rented GPU (vast.ai etc., hours instead of weeks): [`docs/cloud-gpu-guide.md`](docs/cloud-gpu-guide.md).
 
 **New here?** Read [`docs/beginners-guide.md`](docs/beginners-guide.md) (the ideas, in plain words), then
 follow [`docs/end-to-end-guide.md`](docs/end-to-end-guide.md): every step from a fresh laptop to a
