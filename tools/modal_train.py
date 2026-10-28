@@ -114,7 +114,7 @@ def smoke():
     sh(f"{CUDA_BIN} train --config {SRC}/configs/overfit.toml --run runs/overfit", work)
 
 
-@app.function(cpu=8, memory=32768, volumes={"/vol": vol}, timeout=6 * 3600)
+@app.function(cpu=4, memory=16384, volumes={"/vol": vol}, timeout=6 * 3600)
 def prepare_data():
     """Steps 5-6 of docs/end-to-end-guide.md on a CPU container; results go to the volume."""
     work = "/tmp/prep"  # raw downloads stay on the container's local disk
@@ -151,7 +151,7 @@ def _config_for_gpu(stage: int) -> str:
     return path
 
 
-TRAIN_HOURS = 8
+TRAIN_HOURS = 5  # hard stop per run: caps the spend on a slow or stuck GPU
 
 
 @app.function(
