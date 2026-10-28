@@ -168,3 +168,24 @@ then set `base_run = "../FLAME/runs/rust-100m-stage2"` in Lintless and fine-tune
 FLAME still computes everything else in fp32 without fused kernels. The next speed steps
 (bf16 mixed precision, fused attention) would roughly double or triple the speed again,
 making the 100 M model a 2–4 h job on an H100. See [roadmap.md](roadmap.md).
+
+## Alternative: Modal (monthly free credits)
+
+[Modal](https://modal.com) bills per second and gives monthly free credits, which can cover
+the 30 M model. [`tools/modal_train.py`](../tools/modal_train.py) builds FLAME with CUDA into a
+Modal image, keeps data and checkpoints in one Volume (`flame-vol`), and runs each stage as a
+function. Rough budget: the 30 M model is ≈ 2–4 GPU-hours on an A100/H100 plus ≈ 2–3 CPU-hours
+for data preparation; check Modal's pricing page for current per-hour rates and your free credit.
+
+```bash
+pip install modal && modal setup
+modal run tools/modal_train.py::smoke                  # GPU check; must say "running on CUDA GPU 0"
+modal run --detach tools/modal_train.py::prepare_data  # CPU only
+modal run --detach tools/modal_train.py::train --stage 1
+modal run --detach tools/modal_train.py::train --stage 2
+modal volume get flame-vol work/runs/rust-30m-stage2 ./runs/
+```
+
+`train` resumes from the last checkpoint, so re-running the same command continues after a
+preemption or the time limit. Set `FLAME_MODAL_GPU` (`H100`, `A100-80GB`, `L40S`, `A10G`, `L4`)
+to choose the GPU. Set a spend limit in the Modal dashboard as a safety net.
