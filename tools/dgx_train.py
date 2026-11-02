@@ -72,7 +72,7 @@ def snapshot(stage):
                             ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
         for source in ("Cargo.toml", "Cargo.lock", "LICENSE"):
             shutil.copy2(ROOT / source, tmp / source)
-        for source in ("prepared-manifest.json", "source-commit.txt", "validation.txt"):
+        for source in ("prepared-manifest.json", "source-commit.txt", "validation.txt", "verification.json"):
             if (ROOT / "ops" / source).exists():
                 shutil.copy2(ROOT / "ops" / source, tmp / source)
         model = tmp / "runs" / run.name / "checkpoints/latest/model.safetensors"
@@ -85,6 +85,8 @@ def snapshot(stage):
             "run_id": RUN_ID, "stage": stage, "parameters": params,
             "status": "trained" if stage == "stage2" and state["step"] == 2500 else "training",
             "checkpoint": state, "format": "FLAME Candle safetensors; fp32",
+            "backend": json.loads((run / "checkpoints/latest/backend.json").read_text())
+                if (run / "checkpoints/latest/backend.json").exists() else {"backend": "native-candle-fp32"},
             "tokenizer": "data/tokenizers/rust-en-8k.json",
             "source_commit": (ROOT / "ops/source-commit.txt").read_text().strip(),
         })
@@ -164,7 +166,7 @@ def run():
             if shutil.disk_usage(ROOT).free < 50 * 1024**3:
                 raise RuntimeError("Less than 50 GiB free; stopped without deleting backups")
             started = time.time()
-            args = ["target/release/flame", "train", "--config", config, "--run", str(run)]
+            args = [".venv/bin/python", "tools/torch_train.py", "--config", config, "--run", str(run)]
             args += ["--steps", "1"] if first else ["--max-minutes", "30"]
             atomic_json(ROOT / "ops/status.json", {"status": "training", "stage": stage,
                         "last_saved_step": step, "session_started": started})

@@ -81,4 +81,22 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # OS lock also covers manual invocations alongside the scheduled task.
+    import msvcrt
+    DEST.mkdir(parents=True, exist_ok=True)
+    with (DEST / "pull.lock").open("a+b") as lock:
+        lock.seek(0)
+        if not lock.read(1):
+            lock.write(b"0")
+            lock.flush()
+        lock.seek(0)
+        try:
+            msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+        except OSError:
+            print("Another backup pull is active; skipping", flush=True)
+        else:
+            try:
+                main()
+            finally:
+                lock.seek(0)
+                msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)

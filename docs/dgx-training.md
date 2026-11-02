@@ -6,6 +6,28 @@ The exact parameter count is recorded in each checkpoint's `MODEL_CARD.json`.
 The 7500 + 2500 optimizer steps consume 1,310,720,000 tokens in total.
 DGX configs use micro-batch 8, accumulation 16 (131,072 tokens per step).
 
+The managed DGX runner uses PyTorch BF16 autocast, fused causal attention and
+fused AdamW to avoid the native fp32/unfused implementation's bandwidth cost.
+Master weights and optimizer moments stay fp32 and use FLAME's safetensors
+names/layout. A Rust `batch-server` uses the exact native mixture/RNG, including
+the same `(step, micro)` data order. Native FLAME still initializes stages and
+does final evaluation/generation; the final model works in the Rust CLI.
+Each checkpoint records its backend and precision in `backend.json`.
+
+Measured on this shared GB10 on 2026-11-02: native fp32 about 5,400 tokens/s;
+BF16/fused benchmark about 54,000 tokens/s. The initial 70–80 h estimate was
+for the native path; the accelerated path projects roughly 7 h of training
+plus evaluation, backups and load variation. Actual run metrics supersede this
+short benchmark. FP32 cross-backend max logit error: 2.84e-6; BF16 intentionally
+uses lower activation precision, so it does not reproduce fp32 training bitwise.
+Fused CUDA backward kernels can also vary slightly between sessions; checkpoint
+reload preserves saved tensors, optimizer and batch order, but subsequent GPU
+updates are checked numerically rather than promised bitwise identical.
+The real-data eight-update check achieved 51,936–54,225 tokens/s after warmup;
+loss decreased from 8.9966 to 8.5547. The split-resume gate (2 updates versus
+1 + reload + 1) agreed within 1.13e-6 for weights and 4.58e-6 for optimizer
+moments. Native Rust CLI generation loaded the resulting weights successfully.
+
 ## Location and progress
 
 On the DGX (`kenpath`, Tailscale `100.122.210.21`, LAN `192.168.88.69`):
@@ -86,6 +108,11 @@ rustc-errors}` folders from `prepared-data` into the restored checkout. Compare
 their hashes to `prepared-manifest.json`. Run the same `flame train --config ...
 --run ...` command; it loads model, optimizer, step count and deterministic data
 order. A second training process must never write to the same run folder.
+For continuation with the accelerated backend, install the dependencies listed
+in `tools/dgx-bootstrap.sh`, build `cargo build --release --locked --example
+batch-server`, and run `.venv/bin/python tools/torch_train.py --config ... --run
+...` from the restored root. Returning to the native trainer preserves the model,
+optimizer and batching state but changes arithmetic precision/kernel order.
 
 To pause the managed runner, create `ops/PAUSE` plus the active run's `PAUSE` file.
 It finishes the current step, saves and archives, then stops. Remove `ops/PAUSE`

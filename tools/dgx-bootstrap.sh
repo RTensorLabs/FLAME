@@ -19,10 +19,13 @@ cargo build --release --locked --features cuda > ops/build.log 2>&1 &
 BUILD_PID=$!
 /home/kenpath/.local/bin/uv venv .venv
 /home/kenpath/.local/bin/uv pip install --python .venv/bin/python pyarrow requests
+/home/kenpath/.local/bin/uv pip install --python .venv/bin/python torch==2.14.1 --index-url https://download.pytorch.org/whl/cu130
+/home/kenpath/.local/bin/uv pip install --python .venv/bin/python safetensors numpy
 export PATH="$PWD/.venv/bin:$PATH"
 bash tools/fetch_corpus.sh all > ops/corpus.log 2>&1 &
 DATA_PID=$!
 wait "$BUILD_PID"
 cargo test --release --locked > ops/tests.log 2>&1
+cargo build --release --locked --example batch-server >> ops/build.log 2>&1
 wait "$DATA_PID"
 printf 'bootstrap complete\n'
