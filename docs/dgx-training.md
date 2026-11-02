@@ -2,7 +2,8 @@
 
 Run ID: `rust-30m-dgx-20261102`. The two-stage Rust + English recipe uses an
 8-layer, width-512 Transformer, 8 heads, context 1024, and an 8192-token BPE.
-The exact parameter count is recorded in each checkpoint's `MODEL_CARD.json`.
+The model has 29.89M parameters; each checkpoint's `MODEL_CARD.json` records
+the exact integer count.
 The 7500 + 2500 optimizer steps consume 1,310,720,000 tokens in total.
 DGX configs use micro-batch 8, accumulation 16 (131,072 tokens per step).
 
@@ -27,6 +28,14 @@ The real-data eight-update check achieved 51,936–54,225 tokens/s after warmup;
 loss decreased from 8.9966 to 8.5547. The split-resume gate (2 updates versus
 1 + reload + 1) agreed within 1.13e-6 for weights and 4.58e-6 for optimizer
 moments. Native Rust CLI generation loaded the resulting weights successfully.
+
+The initial wall-clock allowance is **8–10 h** for the full two-stage run.
+Training is still in progress as of 2026-11-02; completed-run timing and final
+quality have not been measured. For a fresh ETA, use recent `tok_per_sec` values
+in the active run's `metrics.jsonl` and include the unstarted stage's tokens:
+`remaining tokens / tokens per second / 3600`, plus evaluation and backup time.
+The stage-1 log's ETA covers stage 1 only. `flame status` reads the latest saved
+checkpoint, so its step count can lag live logs by the five-minute save interval.
 
 ## Location and progress
 

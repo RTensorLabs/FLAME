@@ -454,6 +454,22 @@ A100 or RTX 4090 for a few dollars, instead of weeks on the laptop. Follow
 [../cloud-gpu-guide.md](../cloud-gpu-guide.md): it covers choosing the GPU, cost, a one-command
 setup script, training, and copying the results home.
 
+### 7.2 Existing DGX Spark: measured accelerated training
+
+The shared GB10 DGX now runs the 29.89M dense model with an optional PyTorch
+BF16/fused backend. Early real-data speed is 52,000–54,000 tokens/s, compared
+with about 5,400 tokens/s for the native fp32 path on that machine. The full
+1.31B-token plan projects to 6.7–7.0 h of updates; the initial wall-clock
+allowance is 8–10 h including evaluation and backups. Training is in progress,
+so final elapsed time and quality are not yet known.
+
+Model weights and optimizer moments stay fp32 and are compatible with the Rust
+CLI; a Rust bridge preserves native batch sampling. The runner handles both
+stages and the final model upload. Versioned checkpoints are retained on the
+DGX, uploaded to GitHub Releases, and copied to the PC with checksums. Follow
+[../dgx-training.md](../dgx-training.md) for status, precision limitations,
+publication and recovery commands.
+
 ---
 
 ## 9. When something goes wrong

@@ -112,7 +112,7 @@ The project is also your way to learn how models work. A good order:
    - print the top-5 next-token probabilities in `generate`;
    - a **KV cache** for generation (makes Lintless 10× faster);
    - gradient-norm logging per layer;
-   - TF32 / bf16 matmuls (speed).
+   - compare native TF32 with the optional DGX BF16/fused backend (speed).
 4. **Read the paper behind each component** when you touch it: the table in
    [../concepts.md](../concepts.md) lists them.
 
@@ -120,8 +120,11 @@ The project is also your way to learn how models work. A good order:
 
 ## 7. Protecting your work
 
-- **Back up finished models**: copy `runs/NAME/best/` and `runs/NAME/config.toml` to an external
-  drive or cloud folder after each stage. Weeks of GPU time live in a few hundred MB.
+- **Back up complete runs**: retain model weights, optimizer moments, `state.json`,
+  frozen config and the exact tokenizer. Keep prepared data and its hashes for
+  resumable training. `best/` alone is insufficient to resume AdamW. The managed
+  DGX run has versioned archives on the DGX, GitHub Releases and the PC; follow
+  [../dgx-training.md](../dgx-training.md) to restore and verify them.
 - **Never delete a run folder**: `--fresh` renames it to a backup anyway. Delete backups only
   when you're sure.
 - **Disk space**: raw data is 5–8 GB, prepared data 2–4 GB, and each run up to ~1 GB. Check with `du -sh ~/code/*/data ~/code/*/runs`.
@@ -157,7 +160,7 @@ The project is also your way to learn how models work. A good order:
 **After a stage / fine-tune:**
 - [ ] `flame eval` (per-source) / `lintless eval`
 - [ ] results + samples in the lab notebook
-- [ ] back up `best/`
+- [ ] back up the complete run, tokenizer and checksums; verify an independent copy
 - [ ] decide the next step using the tables in the end-to-end guides
 
 ---
@@ -165,7 +168,10 @@ The project is also your way to learn how models work. A good order:
 ## 10. What to do after the first version works
 
 In rough order of value:
-1. **FLAME speed work** (TF32/bf16, fused attention): 2–4× faster training; makes 100 M practical.
+1. **Measure the available speed paths**: native TF32 and the optional DGX
+   BF16/fused backend now exist. The 30M DGX run improved about 10×; measure 100M
+   and other workloads before extrapolating. Fused training in the Candle core
+   remains future work.
 2. **KV cache**: 10×+ faster generation (Lintless evaluation and `fix`).
 3. **More Lintless error types** (lifetimes, borrow conflicts): the hard, valuable cases.
 4. **Research round 2**, based on round-1 results.

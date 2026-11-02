@@ -5,6 +5,12 @@ instead of weeks, without wasting money. Every step, in order. Prices and speeds
 **estimates**: check the current vast.ai listing, and measure the real speed with the
 10-minute benchmark in step 5.
 
+For the existing **DGX Spark / GB10**, use [dgx-training.md](dgx-training.md).
+That guide documents a measured optional BF16/fused backend (~52,000–54,000
+tokens/s on the 29.89M model), automated recovery and publication. The rented-GPU
+figures below remain estimates for the native Candle path, not measurements of
+the Spark or of the optional backend.
+
 ## Summary
 
 | | recommendation |
@@ -17,7 +23,7 @@ instead of weeks, without wasting money. Every step, in order. Prices and speeds
 
 ## 1. Which GPU, and what it costs
 
-FLAME computes in fp32. With **TF32** (on by default since this version), matrix
+Native `flame train` computes in fp32. With **TF32** (on by default since this version), matrix
 multiplications run on the tensor cores, which is a big win on data-centre GPUs. The other
 operations depend on memory bandwidth, where data-centre GPUs are also strongest.
 
@@ -165,6 +171,9 @@ then set `base_run = "../FLAME/runs/rust-100m-stage2"` in Lintless and fine-tune
 
 ## Getting even faster later
 
-FLAME still computes everything else in fp32 without fused kernels. The next speed steps
-(bf16 mixed precision, fused attention) would roughly double or triple the speed again,
-making the 100 M model a 2–4 h job on an H100. See [roadmap.md](roadmap.md).
+Native Candle training still computes the remaining operations in fp32 without
+fused attention. An optional PyTorch BF16/fused backend now exists for the dense
+DGX 30M run; it exports native FLAME fp32 weights and AdamW state and uses a Rust
+batch bridge. See [dgx-training.md](dgx-training.md) for measured results and
+verification. Benchmark other GPUs, model sizes and workloads before assigning
+them a speedup. Native Candle fused training remains on the [roadmap](roadmap.md).

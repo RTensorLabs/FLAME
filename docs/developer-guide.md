@@ -134,7 +134,10 @@ would be a weaker baseline.
 composed from `exp`, `mean`, `mul`, … instead of Candle's fused kernels. Reasons:
 (1) each concept is readable in a few lines; (2) every op is guaranteed to have a backward pass
 (some fused Candle ops are forward-only); (3) it matches the PyTorch reference exactly.
-→ *Cost:* slower. Fused kernels / flash-attention are on the roadmap as a deliberate speed step.
+→ *Cost:* slower. This describes the native Candle path. The optional DGX
+backend uses BF16 autocast and fused attention without changing the native core;
+see [dgx-training.md](dgx-training.md) and the backend section in
+[architecture.md](architecture.md#optional-accelerated-dgx-path).
 
 **Tied embeddings by default.** For small models the embedding matrix is a large share of
 the parameters (4096 × 256 = 1 M of 5.9 M). Tying saves it and usually helps at this scale.
@@ -353,7 +356,12 @@ The structs use `deny_unknown_fields`, so typos in configs are errors, not silen
 
 ## 6. Known limitations / next steps
 
-- FP32 only, no fused attention: roughly 2–4× slower than possible (see roadmap).
+- Native Candle training uses fp32/TF32 without fused attention. The optional
+  `tools/torch_train.py` backend is validated for the dense 30M DGX configuration,
+  exports native fp32 checkpoint tensors, and consumes native Rust batches. It
+  does not implement arbitrary `LanguageModel` plugins, auxiliary losses or
+  masked Lintless instruction batches. Its fused CUDA updates have numerical,
+  rather than bitwise, resume checks. See [dgx-training.md](dgx-training.md).
 - No KV cache: generation is O(T²) per token.
 - `metrics.jsonl` may repeat a few steps after a crash (those steps were redone after resuming from the last checkpoint).
 - `flame prepare` tokenises one 64 MB block at a time in parallel; very large corpora take a while.

@@ -37,16 +37,20 @@ code/
 | Sampling (temperature, top-k) | `crates/flame/src/generate.rs` |
 | Training-time estimator | `crates/flame/src/estimate.rs` |
 | `flame` CLI | `crates/flame-cli/src/main.rs` |
+| Optional DGX BF16/fused trainer, native batching, recovery publisher | `tools/torch_train.py`, `torch_backend.py`, `dgx_train.py`; [DGX guide](docs/dgx-training.md) |
 
 Verified by tests (`cargo test`):
 
 - **Causality**: changing future tokens never changes past logits.
 - **Overfit gate**: a tiny model memorises a tiny text (loss < 0.15).
-- **Pause/resume is exact**: training 30 steps straight gives **bit-identical** weights to
+- **Native CPU pause/resume is exact**: training 30 steps straight gives **bit-identical** weights to
   12 + 11 + 7 steps across three separate "sessions".
 - **Ctrl+C and the PAUSE file** save a checkpoint and stop.
 - **Cross-check with PyTorch**: `tools/reference_check.py` re-implements the model in PyTorch
   from the paper descriptions and compares logits (measured max difference: 5e-7).
+
+The optional DGX CUDA backend has separate numerical resume and checkpoint-compatibility
+checks; fused GPU updates are not promised bit-identical. See [DGX verification](docs/dgx-training.md).
 
 ---
 
@@ -147,6 +151,15 @@ The full analysis for an **RTX 3070 Ti Laptop (8 GB)** with ~6 h of training per
 Measure your real speed after 10 minutes of training with `flame status`. It prints your
 achieved TFLOP/s, which you then pass to `flame estimate --tflops X`.
 
+**DGX Spark / GB10, measured 2026-11-02:** the 29.89 M model at context 1024 and
+131,072 tokens/step reached about **5,400 tokens/s** with native fp32 training and
+**52,000–54,000 tokens/s** with the optional BF16/fused backend. For both stages
+(1.31 B tokens), that projects to **6.7–7.0 h of optimizer updates**, with an initial
+**8–10 h wall-clock allowance** for evaluation, backups and shared-machine load.
+These are early-run projections, not a completed-run measurement. The laptop table
+above does not predict this machine/backend. See [DGX training and recovery](docs/dgx-training.md)
+for commands, precision, live progress, GitHub releases, and restore instructions.
+
 ## 7. Commands
 
 ```text
@@ -183,6 +196,7 @@ would load weights into a different model. You *may* change `[train]`, for examp
 > every command, and a step-by-step plan. Then [`docs/universal/02-getting-the-most.md`](docs/universal/02-getting-the-most.md).
 > How the code is built, with diagrams: [`docs/architecture.md`](docs/architecture.md).
 > Training on a rented GPU (vast.ai etc., hours instead of weeks): [`docs/cloud-gpu-guide.md`](docs/cloud-gpu-guide.md).
+> DGX Spark training, measured speed, model publication and checkpoint recovery: [`docs/dgx-training.md`](docs/dgx-training.md).
 
 **New here?** Read [`docs/beginners-guide.md`](docs/beginners-guide.md) (the ideas, in plain words), then
 follow [`docs/end-to-end-guide.md`](docs/end-to-end-guide.md): every step from a fresh laptop to a

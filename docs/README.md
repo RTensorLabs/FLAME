@@ -4,6 +4,7 @@
 |---|---|
 | [universal/](universal/README.md) | **start here**: the complete guide for all three repos, and how to get the most out of them |
 | [cloud-gpu-guide.md](cloud-gpu-guide.md) | training on a rented GPU (vast.ai): which GPU, cost, setup script, step by step |
+| [dgx-training.md](dgx-training.md) | DGX Spark 30M run: BF16/fused backend, measured throughput, services, GitHub model/checkpoint releases, and recovery |
 | [architecture.md](architecture.md) | how FLAME is built and how data flows through it (diagrams) |
 | [beginners-guide.md](beginners-guide.md) | **read first**: every idea (token, loss, epoch, stages, fine-tuning…) in plain words |
 | [end-to-end-guide.md](end-to-end-guide.md) | **the whole journey in order**: setup → build → test → sanity runs → Rust corpus → train the 30 M base in two stages → evaluate → when to scale to 100 M |

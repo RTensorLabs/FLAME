@@ -5,6 +5,31 @@ Laptop ships at 80–150 W), cooling, driver and whether you're on WSL2. After 1
 any run, `flame status --run runs/<name>` prints your *measured* throughput and time left.
 Use that instead of this page from then on.
 
+## Measured DGX Spark result (2026-11-02)
+
+The laptop estimates below apply to native Candle training. The same 29.89 M
+Transformer was also measured on a shared NVIDIA GB10 DGX Spark, at context 1024,
+micro-batch 8 × accumulation 16 (131,072 tokens/step):
+
+| training backend | measured tokens/s | projected optimizer time for 1,310,720,000 tokens |
+|---|---:|---:|
+| native Candle fp32, TF32 matmuls enabled | about 5,400 | about 67 h |
+| optional PyTorch BF16 autocast, fused attention + AdamW | 52,000–54,000 | 6.7–7.0 h |
+
+The native path materializes full attention matrices and uses unfused fp32
+operations. The accelerated path uses lower-precision activations and fused
+kernels, with fp32 master weights and optimizer moments. Both consume the full
+7500 + 2500 step budget; the Rust batch bridge preserves native sampling.
+The laptop's estimated 13–50 h range is not a DGX measurement.
+
+The initial wall-clock allowance for the accelerated run is **8–10 h**, including
+evaluation, recovery archives, uploads and load variation. These are projections
+from a short benchmark and early real-data steps; final elapsed time and model
+quality remain to be measured. See [dgx-training.md](dgx-training.md) for the run,
+verification results and storage locations. The optional backend has only been
+validated here for the dense 30M configuration; do not extrapolate its speed to
+research models, Lintless or 100M without measuring them.
+
 ## Your time budget
 
 You said: **3–4 h on weekends, 0–1 h on weekdays.** This page assumes:
@@ -58,7 +83,7 @@ hours          = FLOPs / (achieved TFLOP/s × 10¹²) / 3600
 | Rust + English base model (stage 1 + 2, context 1024) | `configs/rust-30m-stage1.toml` + `stage2` | 30 M | 1.3 B | 2.7e17 | **13–50 h** (≈ 25) | **2–8 weeks** (≈ 4) |
 | Lintless fine-tune of the base model | `lintless/configs/finetune-30m.toml` | 30 M (all weights) | ≈ 7.5 M (5 000 samples × ~500 tokens × 3 epochs) | ≈ 1.5e15 | **10–40 min** | one evening |
 | Lintless evaluation (500 samples) | – | 30 M | – | – | 30–80 min (no KV cache yet) | one evening |
-| ~100 M base model | (not provided) | 98 M | 2 B | 1.3e18 | 60–230 h (≈ 115) | 3–9 months |
+| ~100 M base model | `configs/rust-100m-stage1/2.toml` | ~100 M | 2 B | 1.3e18 | 60–230 h (≈ 115) | 3–9 months |
 
 Modular research models do extra work per step: a host sync for routing decisions and
 index-select/scatter for sparse dispatch. Expect **1.5–3× the wall-clock of a dense model with
@@ -72,7 +97,8 @@ the same FLOPs** at this scale. That overhead is itself a finding; record it.
 - Once the base model exists, the Lintless fine-tune takes **one evening**. Collect the
   Lintless data (CPU only) while the base model trains.
 - **Skip ~100 M for now.** It needs about 4 months of your GPU time. If you need it later,
-  first add bf16/TF32 matmuls and flash-attention to FLAME; that alone is worth 2–4× speed.
+  benchmark the optional BF16/fused backend first; it is validated for the dense 30M
+  run, with native Candle fused training still future work.
 
 ## Memory (8 GB VRAM)
 

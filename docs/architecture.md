@@ -18,7 +18,7 @@ flowchart LR
         TOK["tokenizer.rs<br/>learn 8,192 pieces"]
         PREPARE["flame prepare<br/>text → token ids"]
     end
-    subgraph TRAIN["Training (weeks, pausable)"]
+    subgraph TRAIN["Native training (pausable)"]
         DATA["data.rs<br/>random windows · mixing"]
         MODEL["model.rs + nn.rs<br/>Transformer"]
         OPT["optim.rs<br/>AdamW + LR schedule"]
@@ -90,6 +90,26 @@ flowchart TD
 | `checkpoint.rs` | crash-safe saving and loading | ~110 |
 | `generate.rs` | writes text with temperature / top-k | ~80 |
 | `flame-cli/src/main.rs` | the `flame` command and all its sub-commands | ~560 |
+
+### Optional accelerated DGX path
+
+`tools/torch_backend.py` implements the same dense Transformer with BF16
+autocast and fused causal attention, retaining fp32 master weights.
+`tools/torch_train.py` adds fused AdamW, validation, pause/time budgets and
+native-format safetensors checkpoints. `crates/flame/examples/batch-server.rs`
+supplies batches through a binary pipe using the existing `MixedDataset` and
+Rust RNG. Sampling and optimizer step numbers therefore retain their native
+meaning. The native CLI initializes stages and can evaluate/generate from the
+exported weights; arithmetic differs between BF16 and native fp32.
+
+`tools/dgx_train.py` orchestrates preparation → stage 1 → stage 2 → native final
+evaluation/generation → complete-model package. At session boundaries it copies
+a stable run into a separate recovery directory and creates a new archive with
+checksums. A systemd timer publishes archives to GitHub Releases; a Windows task
+copies them to another machine. These services and their paths are specific to
+the managed DGX deployment. See [dgx-training.md](dgx-training.md) for operations,
+numerical verification and recovery. The generic Candle library remains the
+backend for flame-research and Lintless.
 
 ---
 

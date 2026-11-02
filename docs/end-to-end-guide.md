@@ -10,6 +10,13 @@ on an RTX 3070 Ti Laptop (8 GB) with about 6 hours of training time per week.
 Commands are run from the `FLAME/` folder unless stated otherwise. Lines starting with `#`
 are comments; you don't type them.
 
+**Using the DGX Spark instead of the laptop?** Follow [dgx-training.md](dgx-training.md).
+It covers the managed 29.89M run, optional BF16/fused trainer, native checkpoint
+compatibility, automatic stage transition, and GitHub/PC recovery copies. Early
+real-data speed was 52,000–54,000 tokens/s: roughly 6.7–7.0 h of optimizer updates
+for both stages, with an initial 8–10 h wall-clock allowance. The laptop estimates
+on this page are not DGX predictions; the run is still in progress.
+
 ## The whole plan at a glance
 
 ```text

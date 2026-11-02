@@ -54,7 +54,7 @@ by checking the output of a real run.
 | Tiny Shakespeare on a 4-core CPU | loss 4.65 → 2.75 in 77 steps; paused (`--steps 60`), resumed (`--max-minutes 1.5`), `status` correct |
 | clippy | 0 warnings |
 
-**Not yet verified:** the CUDA build (the development machine had no GPU). The code uses
+**At the initial CPU verification, not yet verified:** the CUDA build (the development machine had no GPU). The code uses
 only `Device::cuda_if_available` and no CUDA-specific code paths, so the risk is limited to
 the build toolchain. See `setup.md`.
 
@@ -87,3 +87,32 @@ number in the lab notebook.
   too (shared `select_device`). Not measured yet (no GPU in the development sandbox).
 - **Cloud training**: `tools/cloud_setup.sh` (one-shot setup of a rented GPU machine) and
   `docs/cloud-gpu-guide.md`.
+
+## 2026-11-02 — DGX 30M training and recovery
+
+- CUDA 13.0 / compute capability 12.1 build succeeded on the shared NVIDIA GB10
+  DGX Spark. All nine native tests passed; GPU overfit validation loss was 0.05499.
+- Prepared the Rust + English corpus and shared 8192-token BPE. The dense model
+  has 29.89M parameters, context 1024, and 131,072 tokens/step. The two-stage
+  budget is 7500 + 2500 updates = 1,310,720,000 tokens.
+- Native fp32/TF32 reached about 5,400 tokens/s, projecting about 67 h of updates.
+  Added an optional PyTorch BF16/fused-attention + fused-AdamW backend with fp32
+  master weights/moments and native checkpoint names. A Rust batch server uses
+  the exact existing `MixedDataset` sampler. Early real-data speed reached
+  51,936–54,225 tokens/s after warmup, about 10× faster; 6.7–7.0 h of updates and
+  an initial 8–10 h wall-clock allowance are projections, not final timings.
+- FP32 cross-backend max logit error: 2.8313e-6. Two updates versus one + reload
+  + one agreed within 1.13e-6 for weights and 4.58e-6 for optimizer moments.
+  BF16 changes arithmetic and fused backward is not promised bitwise deterministic.
+- Verified a checkpoint archive's internal SHA256 manifest after extraction and
+  loaded its weights/tokenizer through native Rust CPU generation.
+- Installed the managed two-stage runner, five-minute local checkpoints,
+  approximately 30-minute versioned recovery archives, five-minute GitHub
+  publisher checks, and a 15-minute PC copy task. The first archives were
+  uploaded and independently copied with verified checksums. Older archives
+  are retained; deletions are not mirrored. Prepared data has a separate private
+  DGX recovery copy and is excluded from GitHub releases.
+- Training is running; full-run elapsed time, final validation and the complete
+  trained model remain pending. The runner evaluates and packages both stages
+  at completion, and the publisher uploads the final model automatically.
+  Operations and restore instructions: [dgx-training.md](dgx-training.md).

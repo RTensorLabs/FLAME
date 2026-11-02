@@ -4,6 +4,11 @@ Training on one laptop means sessions of 30 minutes to 4 hours, shutdowns in bet
 and sometimes crashes. Everything in FLAME, flame-research and Lintless is built so you can
 stop at any moment and continue later with no loss of quality.
 
+This page describes the native trainer. The optional DGX BF16/fused trainer uses
+the same model/AdamW/state checkpoint layout and native Rust batching, with
+different signal handling and numerical guarantees. See the DGX-specific pause,
+service and restore commands in [dgx-training.md](dgx-training.md).
+
 ## The rule
 
 > **To resume, run exactly the same command again.**
@@ -47,7 +52,7 @@ sessions.log              when each session started and why it stopped
 Lintless fine-tunes use FLAME's trainer, so `runs/lintless-*/` has exactly the same layout
 (plus `tokenizer.json` and `finetune.toml`). Everything on this page applies to them too.
 
-## Why resume is exact
+## Native resume guarantees
 
 - The data order is a pure function of `(seed, step)`, so no data-loader state needs saving.
 - AdamW's moment buffers are saved. FLAME implements AdamW itself precisely because Candle's
@@ -55,8 +60,28 @@ Lintless fine-tunes use FLAME's trainer, so `runs/lintless-*/` has exactly the s
 - The LR schedule is a function of the step.
 - Weight initialisation is seeded on the host, independent of the device.
 
-The test `pause_and_resume_is_bit_identical` trains 30 steps straight and 12 + 11 + 7 steps
-over three sessions, and checks the final weights are **bit-for-bit equal**.
+The CPU test `pause_and_resume_is_bit_identical` trains 30 steps straight and
+12 + 11 + 7 steps over three sessions, and checks the final weights are
+**bit-for-bit equal**. This is not a bitwise guarantee for arbitrary CUDA kernels.
+
+For the optional DGX backend, saved weights and moments reload in fp32 and the
+Rust bridge supplies the same `(seed, step, micro)` batches. Fused CUDA backward
+kernels can produce small numerical differences in subsequent updates. The
+two-update versus one + reload + one gate agreed within 1.13e-6 for model weights
+and 4.58e-6 for optimizer moments. Switching between fp32 and BF16 also changes
+arithmetic; it is not the same numerical trajectory.
+
+## Recovery after accidental deletion
+
+An atomic rotating `latest` checkpoint protects against interrupted writes; it
+does not replace independent backups. The managed DGX run saves locally every
+five minutes and creates versioned recovery archives about every 30 minutes,
+including optimizer state, tokenizer, config, source, metrics and checksums.
+Archives upload to [GitHub Releases](https://github.com/RTensorLabs/FLAME/releases/tag/rust-30m-dgx-20261102-checkpoints)
+and are copied to the PC every 15 minutes while it is available. Old archives
+are retained and deletion is not mirrored. The complete-model release is
+published after both stages and evaluation finish. Full recovery commands and
+the separate prepared-data backup are in [dgx-training.md](dgx-training.md).
 
 ## A typical week
 
