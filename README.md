@@ -176,6 +176,24 @@ flame export-reference         bundle for tools/reference_check.py (PyTorch cros
 
 Use `flame <command> --help` for all options.
 
+### Prompt loop: `chat.sh`
+
+`flame generate` answers one prompt and exits. `./chat.sh` (repo root) keeps asking for
+prompts until you type `exit` or press Ctrl+D:
+
+```bash
+cargo build --release --locked
+./chat.sh                                         # loads runs/rust-30m-dgx-20261102-stage2 on the CPU
+RUN=runs/shakespeare ./chat.sh                    # any other trained run
+MAX_TOKENS=200 TEMPERATURE=0.4 ./chat.sh          # longer, less random replies
+```
+
+Each reply uses a random seed. The run directory must hold a trained model; for the 30M
+Rust model, unpack the complete-model package from Releases into the repo root
+([DGX guide](docs/dgx-training.md)). The script is a convenience loop, **not a chatbot**:
+FLAME base models only continue text, and each prompt is answered on its own with no
+memory of earlier turns. Code-shaped prompts (`fn main() {`, `struct User {`) work best.
+
 ## 8. Config files
 
 Included: `overfit`, `tiny-shakespeare`, `tinystories-5m`; `rust-30m-stage1` + `rust-30m-stage2`
