@@ -197,6 +197,10 @@ would load weights into a different model. You *may* change `[train]`, for examp
 > How the code is built, with diagrams: [`docs/architecture.md`](docs/architecture.md).
 > Training on a rented GPU (vast.ai etc., hours instead of weeks): [`docs/cloud-gpu-guide.md`](docs/cloud-gpu-guide.md).
 > DGX Spark training, measured speed, model publication and checkpoint recovery: [`docs/dgx-training.md`](docs/dgx-training.md).
+> Does the model's output actually *work*? [`tools/task_eval.py`](tools/task_eval.py) runs code-completion
+> and error-fixing tasks ([`tools/eval/rust_tasks.json`](tools/eval/rust_tasks.json)) and checks them with
+> `rustc`: `python3 tools/task_eval.py --root <model package> --out report.json`. Perplexity says how well
+> a model predicts Rust; this says whether its code compiles, passes tests, and names the right fix.
 
 **New here?** Read [`docs/beginners-guide.md`](docs/beginners-guide.md) (the ideas, in plain words), then
 follow [`docs/end-to-end-guide.md`](docs/end-to-end-guide.md): every step from a fresh laptop to a
