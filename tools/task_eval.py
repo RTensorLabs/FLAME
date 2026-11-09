@@ -32,6 +32,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 DEFAULT_RUN = "runs/rust-30m-dgx-20261102-stage2"
@@ -178,6 +179,8 @@ def main() -> int:
     p.add_argument("--temperature", type=float, default=0.5)
     p.add_argument("--fix-lines", type=int, default=4,
                    help="lines after `help:` that are judged (default: 4)")
+    p.add_argument("--jobs", type=int, default=min(4, os.cpu_count() or 1),
+                   help="samples generated at the same time (default: 4, or fewer CPUs)")
     p.add_argument("--gpu", action="store_true", help="do not pass --cpu to flame")
     p.add_argument("--out", help="save every sample and the scores as JSON")
     args = p.parse_args()
@@ -194,21 +197,30 @@ def main() -> int:
     if args.only:
         tasks = [t for t in tasks if t["kind"] == args.only]
     seeds = list(range(1, args.seeds + 1))
-    print(f"FLAME task eval: {len(tasks)} tasks x {len(seeds)} seeds, run {args.run}")
+    print(f"FLAME task eval: {len(tasks)} tasks x {len(seeds)} seeds, run {args.run}, "
+          f"{args.jobs} jobs", flush=True)
 
     results, started = [], time.time()
-    with tempfile.TemporaryDirectory(prefix="flame-eval-") as tmp:
-        workdir = Path(tmp)
-        for task in tasks:
-            prompt = build_fix_prompt(args, task, workdir) if task["kind"] == "fix" else None
-            samples = []
-            for seed in seeds:
-                if task["kind"] == "complete":
-                    rec = eval_complete(args, task, seed, workdir)
-                else:
-                    rec = eval_fix(args, task, seed, prompt)
-                rec["seed"] = seed
-                samples.append(rec)
+    with tempfile.TemporaryDirectory(prefix="flame-eval-") as tmp, \
+            ThreadPoolExecutor(max_workers=args.jobs) as pool:
+        prompts = {t["id"]: build_fix_prompt(args, t, Path(tmp)) for t in tasks
+                   if t["kind"] == "fix"}
+
+        def one_sample(task, seed):
+            workdir = Path(tmp) / f"{task['id']}-{seed}"  # each sample compiles alone
+            workdir.mkdir()
+            if task["kind"] == "complete":
+                rec = eval_complete(args, task, seed, workdir)
+            else:
+                rec = eval_fix(args, task, seed, prompts[task["id"]])
+            rec["seed"] = seed
+            return rec
+
+        # Submit everything up front; print tasks in order as each one finishes.
+        futures = [[pool.submit(one_sample, t, s) for s in seeds] for t in tasks]
+        for task, task_futures in zip(tasks, futures):
+            prompt = prompts.get(task["id"])
+            samples = [f.result() for f in task_futures]
             passed = sum(s["passed"] for s in samples)
             stages = ", ".join(s["stage"] for s in samples)
             print(f"  [{task['kind']:8}] {task['id']:22} {passed}/{len(samples)}  ({stages})", flush=True)
