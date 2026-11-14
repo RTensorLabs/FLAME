@@ -35,12 +35,7 @@ pub fn generate<M: LanguageModel + ?Sized>(model: &M, prompt: &[u32], opts: &Sam
     }
     let mut out = Vec::new();
     for _ in 0..opts.max_new_tokens {
-        let ctx_start = ids.len().saturating_sub(model.max_seq_len());
-        let ctx = &ids[ctx_start..];
-        let input = Tensor::new(ctx, device)?.unsqueeze(0)?;
-        let logits = model.forward(&input)?.logits;
-        let last = logits.i((0, ctx.len() - 1))?.to_dtype(DType::F32)?.to_vec1::<f32>()?;
-        let next = sample(&last, opts.temperature, opts.top_k, &mut rng);
+        let next = next_token(model, &ids, opts.temperature, opts.top_k, &mut rng, device)?;
         if Some(next) == opts.stop_token {
             break;
         }
@@ -48,6 +43,18 @@ pub fn generate<M: LanguageModel + ?Sized>(model: &M, prompt: &[u32], opts: &Sam
         out.push(next);
     }
     Ok(out)
+}
+
+/// One generation step: runs the model on the last `max_seq_len` tokens of `ids` and samples
+/// the next token. `generate` is a loop over this; the browser demo calls it one token at a
+/// time so the page can show text as it appears.
+pub fn next_token<M: LanguageModel + ?Sized>(model: &M, ids: &[u32], temperature: f64, top_k: usize, rng: &mut StdRng, device: &Device) -> Result<u32> {
+    let ctx_start = ids.len().saturating_sub(model.max_seq_len());
+    let ctx = &ids[ctx_start..];
+    let input = Tensor::new(ctx, device)?.unsqueeze(0)?;
+    let logits = model.forward(&input)?.logits;
+    let last = logits.i((0, ctx.len() - 1))?.to_dtype(DType::F32)?.to_vec1::<f32>()?;
+    Ok(sample(&last, temperature, top_k, rng))
 }
 
 pub fn sample(logits: &[f32], temperature: f64, top_k: usize, rng: &mut StdRng) -> u32 {

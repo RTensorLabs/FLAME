@@ -35,7 +35,13 @@ impl Tokenizer {
     pub fn load(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
         let text = std::fs::read_to_string(path).with_context(|| format!("reading tokenizer {}", path.display()))?;
-        let mut tok: Tokenizer = serde_json::from_str(&text)?;
+        Self::from_json(&text)
+    }
+
+    /// Parses a tokenizer from the JSON text `save` writes (used where there is no file
+    /// system, e.g. the browser demo).
+    pub fn from_json(text: &str) -> Result<Self> {
+        let mut tok: Tokenizer = serde_json::from_str(text)?;
         if let Tokenizer::Bpe(b) = &mut tok {
             b.rebuild_tables();
         }

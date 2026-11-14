@@ -16,9 +16,12 @@
 //! | [`generate`]  | temperature / top-k sampling                                      |
 //! | [`estimate`]  | training-time estimates                                           |
 
+#[cfg(not(target_arch = "wasm32"))]
 pub mod checkpoint;
 pub mod config;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod control;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod data;
 pub mod estimate;
 pub mod generate;
@@ -27,6 +30,7 @@ pub mod model;
 pub mod nn;
 pub mod optim;
 pub mod tokenizer;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod trainer;
 
 use anyhow::Result;

@@ -16,6 +16,9 @@ serde_json.workspace = true
 toml.workspace = true
 rand.workspace = true
 rayon.workspace = true
+
+# Training-only: file mapping, Ctrl+C handling, directory walking. Not built for the browser.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 memmap2.workspace = true
 ctrlc.workspace = true
 walkdir.workspace = true
