@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FLAME 30M Rust</title>
+<meta name="description" content="A 30M-parameter Rust code model, trained from scratch, running entirely in your browser.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔥</text></svg>">
+<style>
+  :root {
+    --bg: #faf8f5; --panel: #ffffff; --text: #1d1b19; --muted: #6b655e; --line: #e4ded6;
+    --accent: #c2410c; --accent-text: #ffffff; --code-bg: #f4f1ec; --prompt: #6b655e;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161412; --panel: #1f1c19; --text: #ece7e1; --muted: #a39b92; --line: #35302b;
+      --accent: #f97316; --accent-text: #1a0f07; --code-bg: #12100e; --prompt: #8a8178;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161412; --panel: #1f1c19; --text: #ece7e1; --muted: #a39b92; --line: #35302b;
+    --accent: #f97316; --accent-text: #1a0f07; --code-bg: #12100e; --prompt: #8a8178;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 920px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .lede { color: var(--muted); margin: 0 0 24px; max-width: 68ch; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  textarea {
+    width: 100%; min-height: 130px; resize: vertical; padding: 10px 12px;
+    font: 14px/1.5 var(--mono); color: var(--text); background: var(--code-bg);
+    border: 1px solid var(--line); border-radius: 8px;
+  }
+  textarea:focus, input:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .examples { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 14px; }
+  .chip {
+    font: 12.5px var(--mono); padding: 4px 9px; border-radius: 999px; cursor: pointer;
+    background: transparent; color: var(--text); border: 1px solid var(--line);
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .chip:hover { border-color: var(--accent); }
+  .controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 14px; }
+  .controls output { float: right; font-variant-numeric: tabular-nums; color: var(--text); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  input[type=number] {
+    width: 100%; padding: 6px 8px; font: 14px var(--mono); color: var(--text);
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px;
+  }
+  .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  button.primary {
+    background: var(--accent); color: var(--accent-text); border: 0; border-radius: 8px;
+    padding: 9px 18px; font: 600 14px system-ui, sans-serif; cursor: pointer; min-width: 120px;
+  }
+  button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  #status { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .bar { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: 10px; }
+  .bar > div { height: 100%; width: 0; background: var(--accent); transition: width 0.15s; }
+  pre#out {
+    margin: 16px 0 0; min-height: 180px; padding: 14px; white-space: pre-wrap; word-break: break-word;
+    font: 14px/1.55 var(--mono); background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+  }
+  pre#out .p { color: var(--prompt); }
+  .notes { margin-top: 28px; color: var(--muted); font-size: 13.5px; max-width: 72ch; }
+  .notes h2 { font-size: 14px; color: var(--text); margin: 18px 0 4px; }
+  .notes p { margin: 0 0 8px; }
+  code { font-family: var(--mono); font-size: 0.92em; }
+  a { color: var(--accent); }
+  @media (max-width: 640px) { .controls { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>🔥 FLAME 30M · Rust</h1>
+  <p class="lede">A 30-million-parameter language model trained from scratch on Rust code, Rust docs,
+    English and compiler errors. It runs <strong>entirely in your browser</strong>: nothing you type
+    leaves this page. It's a small base model: start some Rust and it continues it.</p>
+
+  <section class="panel">
+    <label for="prompt">Prompt</label>
+    <textarea id="prompt" spellcheck="false">fn main() {</textarea>
+    <div class="examples" id="examples"></div>
+
+    <div class="controls">
+      <div><label for="maxTokens">Max new tokens <output id="maxTokensOut"></output></label>
+        <input type="range" id="maxTokens" min="16" max="300" value="120"></div>
+      <div><label for="temperature">Temperature <output id="temperatureOut"></output></label>
+        <input type="range" id="temperature" min="0" max="1.5" step="0.05" value="0.8"></div>
+      <div><label for="topK">Top-k <output id="topKOut"></output></label>
+        <input type="range" id="topK" min="1" max="200" value="40"></div>
+      <div><label for="seed">Seed</label>
+        <input type="number" id="seed" value="42" min="0" step="1"></div>
+    </div>
+
+    <div class="row">
+      <button class="primary" id="go" disabled>Loading…</button>
+      <span id="status" aria-live="polite">Starting…</span>
+    </div>
+    <div class="bar" id="bar"><div></div></div>
+
+    <pre id="out" aria-live="polite"></pre>
+  </section>
+
+  <div class="notes">
+    <h2>What is this?</h2>
+    <p>FLAME is a small Rust framework (built on <a href="https://github.com/huggingface/candle">Candle</a>)
+      for training language models from scratch. This model: 8 Transformer layers, width 512,
+      8k-token BPE vocabulary, 1024-token context, trained on 328M tokens. Validation loss 1.70
+      overall, 0.97 on Rust code.</p>
+    <h2>How does it run here?</h2>
+    <p>The same Rust model code is compiled to WebAssembly. The page downloads the weights once
+      (the browser keeps them for next time) and generates text on your CPU, one token at a time.
+      Generation slows down as the text gets longer, because each new token re-reads the whole text so far.</p>
+    <p>Temperature 0 always picks the most likely token. The same prompt, settings and seed always give the same text.</p>
+  </div>
+</main>
+
+<script type="module">
+  const $ = (id) => document.getElementById(id);
+  const EXAMPLES = [
+    "fn main() {",
+    "/// Returns the largest element of a slice.\npub fn largest<T: PartialOrd>(list: &[T]) -> &T {",
+    "use std::collections::HashMap;\n\nfn word_count(text: &str) -> HashMap<String, usize> {",
+    "#[derive(Debug, Clone)]\npub struct Config {",
+    "error[E0382]: borrow of moved value: `s`",
+  ];
+  for (const ex of EXAMPLES) {
+    const b = document.createElement("button");
+    b.className = "chip";
+    b.type = "button";
+    b.textContent = ex.split("\n").pop();
+    b.title = ex;
+    b.onclick = () => { $("prompt").value = ex; $("prompt").focus(); };
+    $("examples").append(b);
+  }
+  for (const id of ["maxTokens", "temperature", "topK"]) {
+    const sync = () => ($(id + "Out").textContent = $(id).value);
+    $(id).addEventListener("input", sync);
+    sync();
+  }
+
+  const worker = new Worker("./worker.js", { type: "module" });
+  const bar = $("bar").firstElementChild;
+  let busy = false;
+  let promptText = "";
+
+  function setStatus(s) { $("status").textContent = s; }
+  function showOutput(generated) {
+    const out = $("out");
+    out.textContent = "";
+    const p = document.createElement("span");
+    p.className = "p";
+    p.textContent = promptText;
+    out.append(p, document.createTextNode(generated));
+  }
+  function setBusy(b) {
+    busy = b;
+    $("go").textContent = b ? "Stop" : "Generate";
+    $("go").disabled = false;
+  }
+
+  worker.onmessage = ({ data: m }) => {
+    if (m.type === "progress") {
+      const mb = (n) => (n / 1e6).toFixed(0);
+      bar.style.width = m.total ? (100 * m.loaded / m.total).toFixed(1) + "%" : "50%";
+      setStatus(m.total ? `Downloading model… ${mb(m.loaded)} / ${mb(m.total)} MB` : `Downloading model… ${mb(m.loaded)} MB`);
+    } else if (m.type === "ready") {
+      bar.style.width = "100%";
+      setTimeout(() => ($("bar").style.visibility = "hidden"), 400);
+      setStatus(`Model ready${m.fromCache ? " (loaded from browser cache)" : ""}.`);
+      setBusy(false);
+    } else if (m.type === "token") {
+      showOutput(m.text);
+      setStatus(`${m.n} tokens · ${(m.n / m.seconds).toFixed(1)} tokens/s`);
+    } else if (m.type === "done") {
+      const why = { "end-of-text": "model finished", "max-tokens": "reached max tokens", stopped: "stopped" }[m.reason];
+      setStatus(`${m.n} tokens in ${m.seconds.toFixed(1)} s (${why}).`);
+      setBusy(false);
+    } else if (m.type === "error") {
+      setStatus("Error: " + m.message);
+      setBusy(false);
+    }
+  };
+
+  $("go").onclick = () => {
+    if (busy) { worker.postMessage({ type: "stop" }); return; }
+    promptText = $("prompt").value;
+    showOutput("");
+    setStatus("Thinking…");
+    setBusy(true);
+    worker.postMessage({
+      type: "generate",
+      prompt: promptText,
+      maxTokens: Number($("maxTokens").value),
+      temperature: Number($("temperature").value),
+      topK: Number($("topK").value),
+      seed: Math.max(0, Math.floor(Number($("seed").value) || 0)) >>> 0,
+    });
+  };
+  $("prompt").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !busy && !$("go").disabled) $("go").click();
+  });
+
+  worker.postMessage({ type: "load" });
+</script>
+</body>
+</html>
