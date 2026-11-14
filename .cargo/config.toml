@@ -1,0 +1,7 @@
+# Browser (WebAssembly) builds of crates/flame-wasm:
+#  - getrandom_backend: lets `rand` get randomness from the browser (getrandom 0.3 needs both
+#    this flag and its `wasm_js` feature).
+# Not enabled: `-C target-feature=+simd128`. candle-core 0.11 fails to compile with it
+# (its simd128 code path is missing the f16 helper type `CurrentCpuF16`).
+[target.wasm32-unknown-unknown]
+rustflags = ['--cfg', 'getrandom_backend="wasm_js"']

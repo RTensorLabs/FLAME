@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
-members = ["crates/flame", "crates/flame-cli"]
+members = ["crates/flame", "crates/flame-cli", "crates/flame-wasm"]
+# `cargo build` / `cargo test` skip the browser crate; build it with deploy/web/build.sh.
+default-members = ["crates/flame", "crates/flame-cli"]
 
 [workspace.package]
 version = "0.1.0"
